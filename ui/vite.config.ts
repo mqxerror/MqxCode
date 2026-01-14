@@ -19,6 +19,7 @@ export default defineConfig({
       '/api': {
         target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,
+        ws: true,  // Enable WebSocket for /api routes (spec chat, assistant, etc.)
       },
       '/ws': {
         target: `ws://127.0.0.1:${apiPort}`,

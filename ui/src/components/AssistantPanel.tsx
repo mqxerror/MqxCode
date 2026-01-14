@@ -5,7 +5,8 @@
  * Slides in from the right side of the screen.
  */
 
-import { X, Bot } from 'lucide-react'
+import { X, Bot, Sparkles } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { AssistantChat } from './AssistantChat'
 
 interface AssistantPanelProps {
@@ -16,64 +17,79 @@ interface AssistantPanelProps {
 
 export function AssistantPanel({ projectName, isOpen, onClose }: AssistantPanelProps) {
   return (
-    <>
-      {/* Backdrop - click to close */}
+    <AnimatePresence>
       {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-40 transition-opacity duration-300"
-          onClick={onClose}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Panel */}
-      <div
-        className={`
-          fixed right-0 top-0 bottom-0 z-50
-          w-[400px] max-w-[90vw]
-          bg-white
-          border-l-4 border-[var(--color-neo-border)]
-          shadow-[-8px_0_0px_rgba(0,0,0,1)]
-          transform transition-transform duration-300 ease-out
-          flex flex-col
-          ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-        `}
-        role="dialog"
-        aria-label="Project Assistant"
-        aria-hidden={!isOpen}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b-3 border-[var(--color-neo-border)] bg-[var(--color-neo-progress)]">
-          <div className="flex items-center gap-2">
-            <div className="bg-white border-2 border-[var(--color-neo-border)] p-1.5 shadow-[2px_2px_0px_rgba(0,0,0,1)]">
-              <Bot size={18} />
-            </div>
-            <div>
-              <h2 className="font-display font-bold text-white">Project Assistant</h2>
-              <p className="text-xs text-white/80 font-mono">{projectName}</p>
-            </div>
-          </div>
-          <button
+        <>
+          {/* Backdrop - click to close */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
             onClick={onClose}
-            className="
-              neo-btn neo-btn-ghost
-              p-2
-              bg-white/20 border-white/40
-              hover:bg-white/30
-              text-white
-            "
-            title="Close Assistant (Press A)"
-            aria-label="Close Assistant"
-          >
-            <X size={18} />
-          </button>
-        </div>
+            aria-hidden="true"
+          />
 
-        {/* Chat area */}
-        <div className="flex-1 overflow-hidden">
-          {isOpen && <AssistantChat projectName={projectName} />}
-        </div>
-      </div>
-    </>
+          {/* Panel */}
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="
+              fixed right-0 top-0 bottom-0 z-50
+              w-[420px] max-w-[90vw]
+              bg-[var(--color-bg-primary)]
+              border-l border-[var(--color-border)]
+              shadow-2xl
+              flex flex-col
+            "
+            role="dialog"
+            aria-label="Project Assistant"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-[var(--color-border)] bg-gradient-to-r from-[var(--color-accent-primary)] to-[var(--color-accent-secondary)]">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="bg-white/20 backdrop-blur-sm rounded-xl p-2">
+                    <Bot size={20} className="text-white" />
+                  </div>
+                  <Sparkles
+                    size={10}
+                    className="absolute -top-1 -right-1 text-[var(--color-warning)]"
+                  />
+                </div>
+                <div>
+                  <h2 className="font-display font-semibold text-white">Project Assistant</h2>
+                  <p className="text-xs text-white/70 font-mono">{projectName}</p>
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={onClose}
+                className="
+                  p-2
+                  bg-white/10 hover:bg-white/20
+                  rounded-lg
+                  text-white
+                  transition-colors
+                "
+                title="Close Assistant (Press A)"
+                aria-label="Close Assistant"
+              >
+                <X size={18} />
+              </motion.button>
+            </div>
+
+            {/* Chat area */}
+            <div className="flex-1 overflow-hidden bg-[var(--color-bg-secondary)]">
+              <AssistantChat projectName={projectName} />
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   )
 }

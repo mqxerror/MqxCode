@@ -1,11 +1,12 @@
 /**
  * ConfirmDialog Component
  *
- * A reusable confirmation dialog following the neobrutalism design system.
+ * A reusable confirmation dialog with modern glassmorphism design.
  * Used to confirm destructive actions like deleting projects.
  */
 
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, X, Loader2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -30,74 +31,98 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  if (!isOpen) return null
-
   const variantColors = {
     danger: {
-      icon: 'var(--color-neo-danger)',
-      button: 'neo-btn-danger',
+      iconBg: 'bg-[var(--color-error)]/20',
+      iconColor: 'text-[var(--color-error)]',
+      button: 'btn btn-danger',
     },
     warning: {
-      icon: 'var(--color-neo-pending)',
-      button: 'neo-btn-warning',
+      iconBg: 'bg-[var(--color-warning)]/20',
+      iconColor: 'text-[var(--color-warning)]',
+      button: 'btn btn-warning',
     },
   }
 
   const colors = variantColors[variant]
 
   return (
-    <div className="neo-modal-backdrop" onClick={onCancel}>
-      <div
-        className="neo-modal w-full max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b-3 border-[var(--color-neo-border)]">
-          <div className="flex items-center gap-3">
-            <div
-              className="p-2 border-2 border-[var(--color-neo-border)] shadow-[2px_2px_0px_rgba(0,0,0,1)]"
-              style={{ backgroundColor: colors.icon }}
-            >
-              <AlertTriangle size={20} className="text-white" />
-            </div>
-            <h2 className="font-display font-bold text-lg text-[#1a1a1a]">
-              {title}
-            </h2>
-          </div>
-          <button
-            onClick={onCancel}
-            className="neo-btn neo-btn-ghost p-2"
-            disabled={isLoading}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="w-full max-w-md bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
           >
-            <X size={20} />
-          </button>
-        </div>
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${colors.iconBg}`}>
+                  <AlertTriangle size={20} className={colors.iconColor} />
+                </div>
+                <h2 className="font-display font-semibold text-lg text-[var(--color-text-primary)]">
+                  {title}
+                </h2>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={onCancel}
+                className="p-2 rounded-lg hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] transition-colors"
+                disabled={isLoading}
+              >
+                <X size={20} />
+              </motion.button>
+            </div>
 
-        {/* Content */}
-        <div className="p-6">
-          <p className="text-[var(--color-neo-text-secondary)] mb-6">
-            {message}
-          </p>
+            {/* Content */}
+            <div className="p-6">
+              <p className="text-[var(--color-text-secondary)] text-sm leading-relaxed mb-6">
+                {message}
+              </p>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={onCancel}
-              className="neo-btn"
-              disabled={isLoading}
-            >
-              {cancelLabel}
-            </button>
-            <button
-              onClick={onConfirm}
-              className={`neo-btn ${colors.button}`}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Deleting...' : confirmLabel}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+              {/* Actions */}
+              <div className="flex justify-end gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={onCancel}
+                  className="btn btn-secondary"
+                  disabled={isLoading}
+                >
+                  {cancelLabel}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={onConfirm}
+                  className={colors.button}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    confirmLabel
+                  )}
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

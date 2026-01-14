@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Brain, Sparkles } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { AgentStatus } from '../lib/types'
 
 interface AgentThoughtProps {
@@ -51,8 +52,6 @@ function getLatestThought(logs: Array<{ line: string; timestamp: string }>): str
 export function AgentThought({ logs, agentStatus }: AgentThoughtProps) {
   const thought = useMemo(() => getLatestThought(logs), [logs])
   const [displayedThought, setDisplayedThought] = useState<string | null>(null)
-  const [textVisible, setTextVisible] = useState(true)
-  const [isVisible, setIsVisible] = useState(false)
 
   // Get last log timestamp for idle detection
   const lastLogTimestamp = logs.length > 0
@@ -69,92 +68,99 @@ export function AgentThought({ logs, agentStatus }: AgentThoughtProps) {
     return false
   }, [thought, agentStatus, lastLogTimestamp])
 
-  // Animate text changes using CSS transitions
+  // Update displayed thought
   useEffect(() => {
-    if (thought !== displayedThought && thought) {
-      // Fade out
-      setTextVisible(false)
-      // After fade out, update text and fade in
-      const timeout = setTimeout(() => {
-        setDisplayedThought(thought)
-        setTextVisible(true)
-      }, 150) // Match transition duration
-      return () => clearTimeout(timeout)
+    if (thought) {
+      setDisplayedThought(thought)
     }
-  }, [thought, displayedThought])
-
-  // Handle visibility transitions
-  useEffect(() => {
-    if (shouldShow) {
-      setIsVisible(true)
-    } else {
-      // Delay hiding to allow exit animation
-      const timeout = setTimeout(() => setIsVisible(false), 300)
-      return () => clearTimeout(timeout)
-    }
-  }, [shouldShow])
-
-  if (!isVisible || !displayedThought) return null
+  }, [thought])
 
   const isRunning = agentStatus === 'running'
 
   return (
-    <div
-      className={`
-        transition-all duration-300 ease-out overflow-hidden
-        ${shouldShow ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0'}
-      `}
-    >
-      <div
-        className={`
-          relative
-          bg-[var(--color-neo-card)]
-          border-3 border-[var(--color-neo-border)]
-          shadow-[var(--shadow-neo-sm)]
-          px-4 py-3
-          flex items-center gap-3
-          ${isRunning ? 'animate-pulse-neo' : ''}
-        `}
-      >
-        {/* Brain Icon with subtle glow */}
-        <div className="relative shrink-0">
-          <Brain
-            size={22}
-            className="text-[var(--color-neo-progress)]"
-            strokeWidth={2.5}
-          />
-          {isRunning && (
-            <Sparkles
-              size={10}
-              className="absolute -top-1 -right-1 text-[var(--color-neo-pending)] animate-pulse"
-            />
-          )}
-        </div>
-
-        {/* Thought text with fade transition + shimmer effect when running */}
-        <p
-          className={`
-            font-mono text-sm truncate transition-all duration-150 ease-out
-            ${isRunning ? 'animate-shimmer' : 'text-[var(--color-neo-text)]'}
-          `}
-          style={{
-            opacity: textVisible ? 1 : 0,
-            transform: textVisible ? 'translateY(0)' : 'translateY(-4px)',
-          }}
+    <AnimatePresence>
+      {shouldShow && displayedThought && (
+        <motion.div
+          initial={{ opacity: 0, y: -10, height: 0 }}
+          animate={{ opacity: 1, y: 0, height: 'auto' }}
+          exit={{ opacity: 0, y: -10, height: 0 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="overflow-hidden"
         >
-          {displayedThought?.replace(/:$/, '')}
-        </p>
+          <div
+            className={`
+              relative overflow-hidden
+              bg-[var(--color-bg-card)]
+              border border-[var(--color-border)]
+              rounded-xl
+              px-4 py-3
+              flex items-center gap-3
+              ${isRunning ? 'border-[var(--color-accent-primary)]/50' : ''}
+            `}
+          >
+            {/* Glow background when running */}
+            {isRunning && (
+              <motion.div
+                className="absolute inset-0 pointer-events-none"
+                animate={{
+                  background: [
+                    'radial-gradient(circle at 0% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%)',
+                    'radial-gradient(circle at 100% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%)',
+                    'radial-gradient(circle at 0% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%)',
+                  ]
+                }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              />
+            )}
 
-        {/* Subtle running indicator bar */}
-        {isRunning && (
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-neo-progress)] opacity-50">
-            <div
-              className="h-full bg-[var(--color-neo-progress)] animate-pulse"
-              style={{ width: '100%' }}
-            />
+            {/* Brain Icon */}
+            <div className="relative shrink-0">
+              <motion.div
+                animate={isRunning ? { scale: [1, 1.1, 1] } : {}}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Brain
+                  size={20}
+                  className="text-[var(--color-accent-primary)]"
+                  strokeWidth={2}
+                />
+              </motion.div>
+              {isRunning && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="absolute -top-1 -right-1"
+                >
+                  <Sparkles
+                    size={10}
+                    className="text-[var(--color-warning)]"
+                  />
+                </motion.div>
+              )}
+            </div>
+
+            {/* Thought text */}
+            <motion.p
+              key={displayedThought}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="font-mono text-sm text-[var(--color-text-secondary)] truncate flex-1"
+            >
+              {displayedThought?.replace(/:$/, '')}
+            </motion.p>
+
+            {/* Running indicator bar */}
+            {isRunning && (
+              <motion.div
+                className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-[var(--color-accent-primary)] to-[var(--color-accent-secondary)]"
+                initial={{ width: '0%' }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              />
+            )}
           </div>
-        )}
-      </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

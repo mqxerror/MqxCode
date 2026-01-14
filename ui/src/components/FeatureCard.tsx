@@ -1,5 +1,7 @@
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import type { Feature } from '../lib/types'
+import { cn } from './aceternity/cn'
 
 interface FeatureCardProps {
   feature: Feature
@@ -8,15 +10,15 @@ interface FeatureCardProps {
 }
 
 // Generate consistent color for category
-function getCategoryColor(category: string): string {
+function getCategoryColor(category: string): { bg: string; text: string } {
   const colors = [
-    '#ff006e', // pink
-    '#00b4d8', // cyan
-    '#70e000', // green
-    '#ffd60a', // yellow
-    '#ff5400', // orange
-    '#8338ec', // purple
-    '#3a86ff', // blue
+    { bg: 'rgba(236, 72, 153, 0.15)', text: '#ec4899' }, // pink
+    { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6' }, // blue
+    { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981' }, // green
+    { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b' }, // yellow
+    { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444' }, // red
+    { bg: 'rgba(139, 92, 246, 0.15)', text: '#8b5cf6' }, // purple
+    { bg: 'rgba(6, 182, 212, 0.15)', text: '#06b6d4' }, // cyan
   ]
 
   let hash = 0
@@ -31,34 +33,39 @@ export function FeatureCard({ feature, onClick, isInProgress }: FeatureCardProps
   const categoryColor = getCategoryColor(feature.category)
 
   return (
-    <button
+    <motion.button
       onClick={onClick}
-      className={`
-        w-full text-left neo-card p-4 cursor-pointer
-        ${isInProgress ? 'animate-pulse-neo' : ''}
-        ${feature.passes ? 'border-[var(--color-neo-done)]' : ''}
-      `}
+      whileHover={{ y: -4, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      className={cn(
+        "w-full text-left p-4 rounded-xl cursor-pointer transition-all duration-200",
+        "bg-[var(--color-bg-card)] border border-[var(--color-border)]",
+        "hover:border-[var(--color-accent-primary)] hover:shadow-lg",
+        isInProgress && "border-[var(--color-accent-primary)] shadow-[0_0_20px_rgba(99,102,241,0.3)]",
+        feature.passes && "border-[var(--color-success)]/50"
+      )}
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="flex items-start justify-between gap-2 mb-3">
         <span
-          className="neo-badge"
-          style={{ backgroundColor: categoryColor, color: 'white' }}
+          className="px-2 py-1 text-xs font-medium rounded-md"
+          style={{ backgroundColor: categoryColor.bg, color: categoryColor.text }}
         >
           {feature.category}
         </span>
-        <span className="font-mono text-sm text-[var(--color-neo-text-secondary)]">
+        <span className="font-mono text-xs text-[var(--color-text-tertiary)]">
           #{feature.priority}
         </span>
       </div>
 
       {/* Name */}
-      <h3 className="font-display font-bold mb-1 line-clamp-2">
+      <h3 className="font-display font-semibold text-[var(--color-text-primary)] mb-1 line-clamp-2">
         {feature.name}
       </h3>
 
       {/* Description */}
-      <p className="text-sm text-[var(--color-neo-text-secondary)] line-clamp-2 mb-3">
+      <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 mb-3">
         {feature.description}
       </p>
 
@@ -66,21 +73,36 @@ export function FeatureCard({ feature, onClick, isInProgress }: FeatureCardProps
       <div className="flex items-center gap-2 text-sm">
         {isInProgress ? (
           <>
-            <Loader2 size={16} className="animate-spin text-[var(--color-neo-progress)]" />
-            <span className="text-[var(--color-neo-progress)] font-bold">Processing...</span>
+            <Loader2 size={14} className="animate-spin text-[var(--color-accent-primary)]" />
+            <span className="text-[var(--color-accent-primary)] font-medium">Processing...</span>
           </>
         ) : feature.passes ? (
           <>
-            <CheckCircle2 size={16} className="text-[var(--color-neo-done)]" />
-            <span className="text-[var(--color-neo-done)] font-bold">Complete</span>
+            <CheckCircle2 size={14} className="text-[var(--color-success)]" />
+            <span className="text-[var(--color-success)] font-medium">Complete</span>
           </>
         ) : (
           <>
-            <Circle size={16} className="text-[var(--color-neo-text-secondary)]" />
-            <span className="text-[var(--color-neo-text-secondary)]">Pending</span>
+            <Circle size={14} className="text-[var(--color-text-tertiary)]" />
+            <span className="text-[var(--color-text-tertiary)]">Pending</span>
           </>
         )}
       </div>
-    </button>
+
+      {/* Glow effect for in-progress items */}
+      {isInProgress && (
+        <motion.div
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          animate={{
+            boxShadow: [
+              '0 0 20px rgba(99, 102, 241, 0.2)',
+              '0 0 30px rgba(99, 102, 241, 0.4)',
+              '0 0 20px rgba(99, 102, 241, 0.2)',
+            ],
+          }}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
+      )}
+    </motion.button>
   )
 }

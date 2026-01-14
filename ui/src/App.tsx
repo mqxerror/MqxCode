@@ -4,6 +4,8 @@ import { useProjects, useFeatures, useAgentStatus, useSettings } from './hooks/u
 import { useProjectWebSocket } from './hooks/useWebSocket'
 import { useFeatureSound } from './hooks/useFeatureSound'
 import { useCelebration } from './hooks/useCelebration'
+import { useTheme } from './contexts/ThemeContext'
+import { PixelatedCanvas } from './components/aceternity/pixelated-canvas'
 
 const STORAGE_KEY = 'autocoder-selected-project'
 import { ProjectSelector } from './components/ProjectSelector'
@@ -20,7 +22,7 @@ import { AssistantPanel } from './components/AssistantPanel'
 import { ExpandProjectModal } from './components/ExpandProjectModal'
 import { SettingsModal } from './components/SettingsModal'
 import { DevServerControl } from './components/DevServerControl'
-import { Loader2, Settings } from 'lucide-react'
+import { Loader2, Settings, Moon, Sun } from 'lucide-react'
 import type { Feature } from './lib/types'
 
 function App() {
@@ -44,6 +46,7 @@ function App() {
   const [isSpecCreating, setIsSpecCreating] = useState(false)
 
   const queryClient = useQueryClient()
+  const { theme, toggleTheme } = useTheme()
   const { data: projects, isLoading: projectsLoading } = useProjects()
   const { data: features } = useFeatures(selectedProject)
   const { data: settings } = useSettings()
@@ -170,18 +173,31 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-neo-bg)]">
+    <div className="min-h-screen bg-[var(--color-bg-primary)]">
       {/* Header */}
-      <header className="bg-[var(--color-neo-text)] text-white border-b-4 border-[var(--color-neo-border)]">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      <header className="sticky top-0 z-40 glass border-b border-[var(--color-border)]">
+        <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             {/* Logo and Title */}
-            <h1 className="font-display text-2xl font-bold tracking-tight uppercase">
-              AutoCoder
-            </h1>
+            <div className="flex items-center gap-3">
+              <PixelatedCanvas
+                src="/images/mqx-logo.jpg"
+                width={40}
+                height={40}
+                pixelSize={4}
+                distortionRadius={30}
+                distortionStrength={8}
+                className="rounded-lg"
+                containerClassName="rounded-lg overflow-hidden"
+                grayscale={true}
+              />
+              <h1 className="font-display text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
+                MqxCode
+              </h1>
+            </div>
 
             {/* Controls */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <ProjectSelector
                 projects={projects ?? []}
                 selectedProject={selectedProject}
@@ -205,7 +221,7 @@ function App() {
 
                   <button
                     onClick={() => setShowSettings(true)}
-                    className="neo-btn text-sm py-2 px-3"
+                    className="btn btn-ghost btn-icon"
                     title="Settings (,)"
                     aria-label="Open Settings"
                   >
@@ -214,15 +230,22 @@ function App() {
 
                   {/* GLM Mode Badge */}
                   {settings?.glm_mode && (
-                    <span
-                      className="px-2 py-1 text-xs font-bold bg-purple-500 text-white rounded border-2 border-black shadow-neo-sm"
-                      title="Using GLM API (configured via .env)"
-                    >
+                    <span className="badge badge-primary" title="Using GLM API (configured via .env)">
                       GLM
                     </span>
                   )}
                 </>
               )}
+
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="btn btn-ghost btn-icon"
+                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                aria-label="Toggle theme"
+              >
+                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
             </div>
           </div>
         </div>
@@ -234,11 +257,24 @@ function App() {
         style={{ paddingBottom: debugOpen ? debugPanelHeight + 32 : undefined }}
       >
         {!selectedProject ? (
-          <div className="neo-empty-state mt-12">
-            <h2 className="font-display text-2xl font-bold mb-2">
-              Welcome to AutoCoder
+          <div className="empty-state mt-12 animate-fade-in-up">
+            <div className="mb-8">
+              <PixelatedCanvas
+                src="/images/mqx-logo.jpg"
+                width={200}
+                height={200}
+                pixelSize={8}
+                distortionRadius={80}
+                distortionStrength={15}
+                className="rounded-2xl mx-auto"
+                containerClassName="rounded-2xl overflow-hidden mx-auto shadow-2xl"
+                grayscale={true}
+              />
+            </div>
+            <h2 className="font-display text-3xl font-bold mb-3 text-[var(--color-text-primary)]">
+              Welcome to MqxCode
             </h2>
-            <p className="text-[var(--color-neo-text-secondary)] mb-4">
+            <p className="text-[var(--color-text-secondary)] mb-4 text-lg">
               Select a project from the dropdown above or create a new one to get started.
             </p>
           </div>
@@ -264,12 +300,12 @@ function App() {
              features.in_progress.length === 0 &&
              features.done.length === 0 &&
              wsState.agentStatus === 'running' && (
-              <div className="neo-card p-8 text-center">
-                <Loader2 size={32} className="animate-spin mx-auto mb-4 text-[var(--color-neo-progress)]" />
+              <div className="card p-8 text-center animate-fade-in-up">
+                <Loader2 size={32} className="animate-spin mx-auto mb-4 text-[var(--color-accent-primary)]" />
                 <h3 className="font-display font-bold text-xl mb-2">
                   Initializing Features...
                 </h3>
-                <p className="text-[var(--color-neo-text-secondary)]">
+                <p className="text-[var(--color-text-secondary)]">
                   The agent is reading your spec and creating features. This may take a moment.
                 </p>
               </div>

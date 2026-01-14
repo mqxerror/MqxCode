@@ -5,6 +5,7 @@
  * Allows users to add multiple features to an existing project via AI.
  */
 
+import { motion, AnimatePresence } from 'framer-motion'
 import { ExpandProjectChat } from './ExpandProjectChat'
 
 interface ExpandProjectModalProps {
@@ -20,8 +21,6 @@ export function ExpandProjectModal({
   onClose,
   onFeaturesAdded,
 }: ExpandProjectModalProps) {
-  if (!isOpen) return null
-
   const handleComplete = (featuresAdded: number) => {
     if (featuresAdded > 0) {
       onFeaturesAdded()
@@ -30,12 +29,22 @@ export function ExpandProjectModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-[var(--color-neo-bg)]">
-      <ExpandProjectChat
-        projectName={projectName}
-        onComplete={handleComplete}
-        onCancel={onClose}
-      />
-    </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 bg-[var(--color-bg-primary)]"
+        >
+          <ExpandProjectChat
+            projectName={projectName}
+            onComplete={handleComplete}
+            onCancel={onClose}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

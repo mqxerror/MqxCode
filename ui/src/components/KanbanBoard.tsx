@@ -1,4 +1,5 @@
 import { KanbanColumn } from './KanbanColumn'
+import { motion } from 'framer-motion'
 import type { Feature, FeatureListResponse } from '../lib/types'
 
 interface KanbanBoardProps {
@@ -13,23 +14,31 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
 
   if (!features) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {['Pending', 'In Progress', 'Done'].map(title => (
-          <div key={title} className="neo-card p-4">
-            <div className="h-8 bg-[var(--color-neo-bg)] animate-pulse mb-4" />
-            <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {['Pending', 'In Progress', 'Done'].map((title, index) => (
+          <motion.div
+            key={title}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className="rounded-2xl overflow-hidden bg-[var(--color-bg-secondary)] border border-[var(--color-border)]"
+          >
+            <div className="px-4 py-4 border-b border-[var(--color-border)]">
+              <div className="h-6 w-24 bg-[var(--color-bg-tertiary)] rounded animate-pulse" />
+            </div>
+            <div className="p-3 space-y-3">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-24 bg-[var(--color-neo-bg)] animate-pulse" />
+                <div key={i} className="h-28 bg-[var(--color-bg-tertiary)] rounded-xl animate-pulse" />
               ))}
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <KanbanColumn
         title="Pending"
         count={features.pending.length}

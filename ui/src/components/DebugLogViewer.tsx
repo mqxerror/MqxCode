@@ -8,10 +8,12 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ChevronUp, ChevronDown, Trash2, Terminal as TerminalIcon, GripHorizontal, Cpu, Server } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Terminal } from './Terminal'
 import { TerminalTabs } from './TerminalTabs'
 import { listTerminals, createTerminal, renameTerminal, deleteTerminal } from '@/lib/api'
 import type { TerminalInfo } from '@/lib/types'
+import { cn } from './aceternity/cn'
 
 const MIN_HEIGHT = 150
 const MAX_HEIGHT = 600
@@ -54,12 +56,10 @@ export function DebugLogViewer({
   const [devAutoScroll, setDevAutoScroll] = useState(true)
   const [isResizing, setIsResizing] = useState(false)
   const [panelHeight, setPanelHeight] = useState(() => {
-    // Load saved height from localStorage
     const saved = localStorage.getItem(STORAGE_KEY)
     return saved ? Math.min(Math.max(parseInt(saved, 10), MIN_HEIGHT), MAX_HEIGHT) : DEFAULT_HEIGHT
   })
   const [internalActiveTab, setInternalActiveTab] = useState<TabType>(() => {
-    // Load saved tab from localStorage
     const saved = localStorage.getItem(TAB_STORAGE_KEY)
     return (saved as TabType) || 'agent'
   })
@@ -80,13 +80,10 @@ export function DebugLogViewer({
   // Fetch terminals for the project
   const fetchTerminals = useCallback(async () => {
     if (!projectName) return
-
     setIsLoadingTerminals(true)
     try {
       const terminalList = await listTerminals(projectName)
       setTerminals(terminalList)
-
-      // Set active terminal to first one if not set or current one doesn't exist
       if (terminalList.length > 0) {
         if (!activeTerminalId || !terminalList.find((t) => t.id === activeTerminalId)) {
           setActiveTerminalId(terminalList[0].id)
@@ -99,10 +96,8 @@ export function DebugLogViewer({
     }
   }, [projectName, activeTerminalId])
 
-  // Handle creating a new terminal
   const handleCreateTerminal = useCallback(async () => {
     if (!projectName) return
-
     try {
       const newTerminal = await createTerminal(projectName)
       setTerminals((prev) => [...prev, newTerminal])
@@ -112,16 +107,12 @@ export function DebugLogViewer({
     }
   }, [projectName])
 
-  // Handle renaming a terminal
   const handleRenameTerminal = useCallback(
     async (terminalId: string, newName: string) => {
       if (!projectName) return
-
       try {
         const updated = await renameTerminal(projectName, terminalId, newName)
-        setTerminals((prev) =>
-          prev.map((t) => (t.id === terminalId ? updated : t))
-        )
+        setTerminals((prev) => prev.map((t) => (t.id === terminalId ? updated : t)))
       } catch (err) {
         console.error('Failed to rename terminal:', err)
       }
@@ -129,16 +120,12 @@ export function DebugLogViewer({
     [projectName]
   )
 
-  // Handle closing a terminal
   const handleCloseTerminal = useCallback(
     async (terminalId: string) => {
       if (!projectName || terminals.length <= 1) return
-
       try {
         await deleteTerminal(projectName, terminalId)
         setTerminals((prev) => prev.filter((t) => t.id !== terminalId))
-
-        // If we closed the active terminal, switch to another one
         if (activeTerminalId === terminalId) {
           const remaining = terminals.filter((t) => t.id !== terminalId)
           if (remaining.length > 0) {
@@ -152,7 +139,6 @@ export function DebugLogViewer({
     [projectName, terminals, activeTerminalId]
   )
 
-  // Fetch terminals when project changes
   useEffect(() => {
     if (projectName) {
       fetchTerminals()
@@ -162,42 +148,35 @@ export function DebugLogViewer({
     }
   }, [projectName]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll to bottom when new agent logs arrive (if user hasn't scrolled up)
   useEffect(() => {
     if (autoScroll && scrollRef.current && isOpen && activeTab === 'agent') {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [logs, autoScroll, isOpen, activeTab])
 
-  // Auto-scroll to bottom when new dev logs arrive (if user hasn't scrolled up)
   useEffect(() => {
     if (devAutoScroll && devScrollRef.current && isOpen && activeTab === 'devserver') {
       devScrollRef.current.scrollTop = devScrollRef.current.scrollHeight
     }
   }, [devLogs, devAutoScroll, isOpen, activeTab])
 
-  // Notify parent of height changes
   useEffect(() => {
     if (onHeightChange && isOpen) {
       onHeightChange(panelHeight)
     }
   }, [panelHeight, isOpen, onHeightChange])
 
-  // Handle mouse move during resize
   const handleMouseMove = useCallback((e: MouseEvent) => {
     const newHeight = window.innerHeight - e.clientY
     const clampedHeight = Math.min(Math.max(newHeight, MIN_HEIGHT), MAX_HEIGHT)
     setPanelHeight(clampedHeight)
   }, [])
 
-  // Handle mouse up to stop resizing
   const handleMouseUp = useCallback(() => {
     setIsResizing(false)
-    // Save to localStorage
     localStorage.setItem(STORAGE_KEY, panelHeight.toString())
   }, [panelHeight])
 
-  // Set up global mouse event listeners during resize
   useEffect(() => {
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove)
@@ -213,376 +192,253 @@ export function DebugLogViewer({
     }
   }, [isResizing, handleMouseMove, handleMouseUp])
 
-  // Start resizing
   const handleResizeStart = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsResizing(true)
   }
 
-  // Detect if user scrolled up (agent logs)
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
     const isAtBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 50
     setAutoScroll(isAtBottom)
   }
 
-  // Detect if user scrolled up (dev logs)
   const handleDevScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
     const isAtBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 50
     setDevAutoScroll(isAtBottom)
   }
 
-  // Handle clear button based on active tab
   const handleClear = () => {
-    if (activeTab === 'agent') {
-      onClear()
-    } else if (activeTab === 'devserver') {
-      onClearDevLogs()
-    }
-    // Terminal has no clear button (it's managed internally)
+    if (activeTab === 'agent') onClear()
+    else if (activeTab === 'devserver') onClearDevLogs()
   }
 
-  // Get the current log count based on active tab
-  const getCurrentLogCount = () => {
-    if (activeTab === 'agent') return logs.length
-    if (activeTab === 'devserver') return devLogs.length
-    return 0
-  }
-
-  // Check if current tab has auto-scroll paused
   const isAutoScrollPaused = () => {
     if (activeTab === 'agent') return !autoScroll
     if (activeTab === 'devserver') return !devAutoScroll
     return false
   }
 
-  // Parse log level from line content
   const getLogLevel = (line: string): LogLevel => {
     const lowerLine = line.toLowerCase()
-    if (lowerLine.includes('error') || lowerLine.includes('exception') || lowerLine.includes('traceback')) {
-      return 'error'
-    }
-    if (lowerLine.includes('warn') || lowerLine.includes('warning')) {
-      return 'warn'
-    }
-    if (lowerLine.includes('debug')) {
-      return 'debug'
-    }
+    if (lowerLine.includes('error') || lowerLine.includes('exception') || lowerLine.includes('traceback')) return 'error'
+    if (lowerLine.includes('warn') || lowerLine.includes('warning')) return 'warn'
+    if (lowerLine.includes('debug')) return 'debug'
     return 'info'
   }
 
-  // Get color class for log level
   const getLogColor = (level: LogLevel): string => {
     switch (level) {
-      case 'error':
-        return 'text-red-400'
-      case 'warn':
-        return 'text-yellow-400'
-      case 'debug':
-        return 'text-gray-400'
+      case 'error': return 'text-red-400'
+      case 'warn': return 'text-amber-400'
+      case 'debug': return 'text-zinc-500'
       case 'info':
-      default:
-        return 'text-green-400'
+      default: return 'text-emerald-400'
     }
   }
 
-  // Format timestamp to HH:MM:SS
   const formatTimestamp = (timestamp: string): string => {
     try {
       const date = new Date(timestamp)
-      return date.toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
+      return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
     } catch {
       return ''
     }
   }
 
+  const tabs = [
+    { id: 'agent', label: 'Agent', icon: Cpu, count: logs.length },
+    { id: 'devserver', label: 'Dev Server', icon: Server, count: devLogs.length },
+    { id: 'terminal', label: 'Terminal', icon: TerminalIcon, shortcut: 'T' },
+  ]
+
   return (
-    <div
-      className={`fixed bottom-0 left-0 right-0 z-40 ${
-        isResizing ? '' : 'transition-all duration-200'
-      }`}
-      style={{ height: isOpen ? panelHeight : 40 }}
+    <motion.div
+      className={cn(
+        "fixed bottom-0 left-0 right-0 z-40",
+        !isResizing && "transition-all duration-200"
+      )}
+      style={{ height: isOpen ? panelHeight : 44 }}
+      initial={false}
     >
-      {/* Resize handle - only visible when open */}
+      {/* Resize handle */}
       {isOpen && (
         <div
-          className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize group flex items-center justify-center -translate-y-1/2 z-50"
+          className="absolute top-0 left-0 right-0 h-3 cursor-ns-resize group flex items-center justify-center -translate-y-1/2 z-50"
           onMouseDown={handleResizeStart}
         >
-          <div className="w-16 h-1.5 bg-[#333] rounded-full group-hover:bg-[#555] transition-colors flex items-center justify-center">
-            <GripHorizontal size={12} className="text-gray-500 group-hover:text-gray-400" />
+          <div className="w-20 h-1 bg-[var(--color-border)] rounded-full group-hover:bg-[var(--color-accent-primary)] transition-colors flex items-center justify-center">
+            <GripHorizontal size={12} className="text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent-primary)]" />
           </div>
         </div>
       )}
 
       {/* Header bar */}
-      <div
-        className="flex items-center justify-between h-10 px-4 bg-[#1a1a1a] border-t-3 border-black"
-      >
-        <div className="flex items-center gap-2">
-          {/* Collapse/expand toggle */}
+      <div className="flex items-center justify-between h-11 px-4 bg-[var(--color-bg-secondary)] border-t border-[var(--color-border)]">
+        <div className="flex items-center gap-3">
+          {/* Toggle button */}
           <button
             onClick={onToggle}
-            className="flex items-center gap-2 hover:bg-[#333] px-2 py-1 rounded transition-colors cursor-pointer"
+            className="flex items-center gap-2 hover:bg-[var(--color-bg-tertiary)] px-2 py-1.5 rounded-lg transition-colors cursor-pointer"
           >
-            <TerminalIcon size={16} className="text-green-400" />
-            <span className="font-mono text-sm text-white font-bold">
-              Debug
-            </span>
-            <span className="px-1.5 py-0.5 text-xs font-mono bg-[#333] text-gray-500 rounded" title="Toggle debug panel">
-              D
-            </span>
+            <TerminalIcon size={16} className="text-[var(--color-accent-primary)]" />
+            <span className="font-medium text-sm text-[var(--color-text-primary)]">Debug</span>
+            <span className="px-1.5 py-0.5 text-[10px] font-mono bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] rounded">D</span>
           </button>
 
-          {/* Tabs - only visible when open */}
-          {isOpen && (
-            <div className="flex items-center gap-1 ml-4">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setActiveTab('agent')
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded transition-colors ${
-                  activeTab === 'agent'
-                    ? 'bg-[#333] text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-[#2a2a2a]'
-                }`}
+          {/* Tabs */}
+          <AnimatePresence>
+            {isOpen && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="flex items-center gap-1 ml-2"
               >
-                <Cpu size={12} />
-                Agent
-                {logs.length > 0 && (
-                  <span className="px-1.5 py-0.5 text-[10px] bg-[#444] rounded">
-                    {logs.length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setActiveTab('devserver')
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded transition-colors ${
-                  activeTab === 'devserver'
-                    ? 'bg-[#333] text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-[#2a2a2a]'
-                }`}
-              >
-                <Server size={12} />
-                Dev Server
-                {devLogs.length > 0 && (
-                  <span className="px-1.5 py-0.5 text-[10px] bg-[#444] rounded">
-                    {devLogs.length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setActiveTab('terminal')
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded transition-colors ${
-                  activeTab === 'terminal'
-                    ? 'bg-[#333] text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-[#2a2a2a]'
-                }`}
-              >
-                <TerminalIcon size={12} />
-                Terminal
-                <span className="px-1.5 py-0.5 text-[10px] bg-[#444] text-gray-500 rounded" title="Toggle terminal">
-                  T
-                </span>
-              </button>
-            </div>
-          )}
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id as TabType) }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+                      activeTab === tab.id
+                        ? "bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm"
+                        : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]"
+                    )}
+                  >
+                    <tab.icon size={12} />
+                    {tab.label}
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span className="px-1.5 py-0.5 text-[10px] bg-[var(--color-bg-tertiary)] rounded-full">{tab.count}</span>
+                    )}
+                    {tab.shortcut && (
+                      <span className="px-1 py-0.5 text-[10px] bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] rounded">{tab.shortcut}</span>
+                    )}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {/* Log count and status - only for log tabs */}
+          {/* Status indicators */}
           {isOpen && activeTab !== 'terminal' && (
-            <>
-              {getCurrentLogCount() > 0 && (
-                <span className="px-2 py-0.5 text-xs font-mono bg-[#333] text-gray-300 rounded ml-2">
-                  {getCurrentLogCount()}
-                </span>
-              )}
+            <div className="flex items-center gap-2 ml-2">
               {isAutoScrollPaused() && (
-                <span className="px-2 py-0.5 text-xs font-mono bg-yellow-600 text-white rounded">
-                  Paused
-                </span>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--color-warning)]/20 text-[var(--color-warning)] rounded-full">Paused</span>
               )}
-            </>
+            </div>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Clear button - only for log tabs */}
           {isOpen && activeTab !== 'terminal' && (
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleClear()
-              }}
-              className="p-1.5 hover:bg-[#333] rounded transition-colors"
+              onClick={(e) => { e.stopPropagation(); handleClear() }}
+              className="p-2 hover:bg-[var(--color-bg-tertiary)] rounded-lg transition-colors"
               title="Clear logs"
             >
-              <Trash2 size={14} className="text-gray-400" />
+              <Trash2 size={14} className="text-[var(--color-text-tertiary)]" />
             </button>
           )}
-          <div className="p-1">
-            {isOpen ? (
-              <ChevronDown size={16} className="text-gray-400" />
-            ) : (
-              <ChevronUp size={16} className="text-gray-400" />
-            )}
-          </div>
+          <button onClick={onToggle} className="p-1">
+            {isOpen ? <ChevronDown size={16} className="text-[var(--color-text-tertiary)]" /> : <ChevronUp size={16} className="text-[var(--color-text-tertiary)]" />}
+          </button>
         </div>
       </div>
 
       {/* Content area */}
-      {isOpen && (
-        <div className="h-[calc(100%-2.5rem)] bg-[#1a1a1a]">
-          {/* Agent Logs Tab */}
-          {activeTab === 'agent' && (
-            <div
-              ref={scrollRef}
-              onScroll={handleScroll}
-              className="h-full overflow-y-auto p-2 font-mono text-sm"
-            >
-              {logs.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-gray-500">
-                  No logs yet. Start the agent to see output.
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  {logs.map((log, index) => {
-                    const level = getLogLevel(log.line)
-                    const colorClass = getLogColor(level)
-                    const timestamp = formatTimestamp(log.timestamp)
-
-                    return (
-                      <div
-                        key={`${log.timestamp}-${index}`}
-                        className="flex gap-2 hover:bg-[#2a2a2a] px-1 py-0.5 rounded"
-                      >
-                        <span className="text-gray-500 select-none shrink-0">
-                          {timestamp}
-                        </span>
-                        <span className={`${colorClass} whitespace-pre-wrap break-all`}>
-                          {log.line}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Dev Server Logs Tab */}
-          {activeTab === 'devserver' && (
-            <div
-              ref={devScrollRef}
-              onScroll={handleDevScroll}
-              className="h-full overflow-y-auto p-2 font-mono text-sm"
-            >
-              {devLogs.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-gray-500">
-                  No dev server logs yet.
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  {devLogs.map((log, index) => {
-                    const level = getLogLevel(log.line)
-                    const colorClass = getLogColor(level)
-                    const timestamp = formatTimestamp(log.timestamp)
-
-                    return (
-                      <div
-                        key={`${log.timestamp}-${index}`}
-                        className="flex gap-2 hover:bg-[#2a2a2a] px-1 py-0.5 rounded"
-                      >
-                        <span className="text-gray-500 select-none shrink-0">
-                          {timestamp}
-                        </span>
-                        <span className={`${colorClass} whitespace-pre-wrap break-all`}>
-                          {log.line}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Terminal Tab */}
-          {activeTab === 'terminal' && (
-            <div className="h-full flex flex-col">
-              {/* Terminal tabs bar */}
-              {terminals.length > 0 && (
-                <TerminalTabs
-                  terminals={terminals}
-                  activeTerminalId={activeTerminalId}
-                  onSelect={setActiveTerminalId}
-                  onCreate={handleCreateTerminal}
-                  onRename={handleRenameTerminal}
-                  onClose={handleCloseTerminal}
-                />
-              )}
-
-              {/* Terminal content - render all terminals and show/hide to preserve buffers */}
-              <div className="flex-1 min-h-0 relative">
-                {isLoadingTerminals ? (
-                  <div className="h-full flex items-center justify-center text-gray-500 font-mono text-sm">
-                    Loading terminals...
-                  </div>
-                ) : terminals.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-gray-500 font-mono text-sm">
-                    No terminal available
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="h-[calc(100%-2.75rem)] bg-[var(--color-bg-primary)]"
+          >
+            {/* Agent Logs Tab */}
+            {activeTab === 'agent' && (
+              <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto p-3 font-mono text-sm scrollbar-thin">
+                {logs.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-[var(--color-text-tertiary)]">
+                    No logs yet. Start the agent to see output.
                   </div>
                 ) : (
-                  /* Render all terminals stacked on top of each other.
-                   * Active terminal is visible and receives input.
-                   * Inactive terminals are moved off-screen with transform to:
-                   * 1. Trigger IntersectionObserver (xterm.js pauses rendering)
-                   * 2. Preserve terminal buffer content
-                   * 3. Allow proper dimension calculation when becoming visible
-                   * Using transform instead of opacity/display:none for best xterm.js compatibility.
-                   */
-                  terminals.map((terminal) => {
-                    const isActiveTerminal = terminal.id === activeTerminalId
-                    return (
-                      <div
-                        key={terminal.id}
-                        className="absolute inset-0"
-                        style={{
-                          zIndex: isActiveTerminal ? 10 : 1,
-                          transform: isActiveTerminal ? 'none' : 'translateX(-200%)',
-                          pointerEvents: isActiveTerminal ? 'auto' : 'none',
-                        }}
-                      >
-                        <Terminal
-                          projectName={projectName}
-                          terminalId={terminal.id}
-                          isActive={activeTab === 'terminal' && isActiveTerminal}
-                        />
+                  <div className="space-y-0.5">
+                    {logs.map((log, index) => (
+                      <div key={`${log.timestamp}-${index}`} className="flex gap-3 hover:bg-[var(--color-bg-secondary)] px-2 py-1 rounded-lg">
+                        <span className="text-[var(--color-text-tertiary)] select-none shrink-0 text-xs">{formatTimestamp(log.timestamp)}</span>
+                        <span className={cn(getLogColor(getLogLevel(log.line)), "whitespace-pre-wrap break-all text-xs")}>{log.line}</span>
                       </div>
-                    )
-                  })
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+            )}
+
+            {/* Dev Server Logs Tab */}
+            {activeTab === 'devserver' && (
+              <div ref={devScrollRef} onScroll={handleDevScroll} className="h-full overflow-y-auto p-3 font-mono text-sm scrollbar-thin">
+                {devLogs.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-[var(--color-text-tertiary)]">No dev server logs yet.</div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {devLogs.map((log, index) => (
+                      <div key={`${log.timestamp}-${index}`} className="flex gap-3 hover:bg-[var(--color-bg-secondary)] px-2 py-1 rounded-lg">
+                        <span className="text-[var(--color-text-tertiary)] select-none shrink-0 text-xs">{formatTimestamp(log.timestamp)}</span>
+                        <span className={cn(getLogColor(getLogLevel(log.line)), "whitespace-pre-wrap break-all text-xs")}>{log.line}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Terminal Tab */}
+            {activeTab === 'terminal' && (
+              <div className="h-full flex flex-col">
+                {terminals.length > 0 && (
+                  <TerminalTabs
+                    terminals={terminals}
+                    activeTerminalId={activeTerminalId}
+                    onSelect={setActiveTerminalId}
+                    onCreate={handleCreateTerminal}
+                    onRename={handleRenameTerminal}
+                    onClose={handleCloseTerminal}
+                  />
+                )}
+                <div className="flex-1 min-h-0 relative">
+                  {isLoadingTerminals ? (
+                    <div className="h-full flex items-center justify-center text-[var(--color-text-tertiary)] font-mono text-sm">Loading terminals...</div>
+                  ) : terminals.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-[var(--color-text-tertiary)] font-mono text-sm">No terminal available</div>
+                  ) : (
+                    terminals.map((terminal) => {
+                      const isActiveTerminal = terminal.id === activeTerminalId
+                      return (
+                        <div
+                          key={terminal.id}
+                          className="absolute inset-0"
+                          style={{
+                            zIndex: isActiveTerminal ? 10 : 1,
+                            transform: isActiveTerminal ? 'none' : 'translateX(-200%)',
+                            pointerEvents: isActiveTerminal ? 'auto' : 'none',
+                          }}
+                        >
+                          <Terminal projectName={projectName} terminalId={terminal.id} isActive={activeTab === 'terminal' && isActiveTerminal} />
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }
 
-// Export the TabType for use in parent components
 export type { TabType }

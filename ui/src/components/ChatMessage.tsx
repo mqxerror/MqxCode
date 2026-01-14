@@ -2,7 +2,7 @@
  * Chat Message Component
  *
  * Displays a single message in the spec creation chat.
- * Supports user, assistant, and system messages with neobrutalism styling.
+ * Supports user, assistant, and system messages with modern styling.
  */
 
 import { Bot, User, Info } from 'lucide-react'
@@ -25,27 +25,27 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const roleConfig = {
     user: {
       icon: User,
-      bgColor: 'bg-[var(--color-neo-pending)]',
-      borderColor: 'border-[var(--color-neo-border)]',
+      bgColor: 'bg-gradient-to-br from-[var(--color-accent-primary)] to-[var(--color-accent-secondary)]',
+      textColor: 'text-white',
       align: 'justify-end',
       bubbleAlign: 'items-end',
-      iconBg: 'bg-[var(--color-neo-pending)]',
+      iconBg: 'bg-[var(--color-accent-primary)]',
     },
     assistant: {
       icon: Bot,
-      bgColor: 'bg-white',
-      borderColor: 'border-[var(--color-neo-border)]',
+      bgColor: 'bg-[var(--color-bg-secondary)]',
+      textColor: 'text-[var(--color-text-primary)]',
       align: 'justify-start',
       bubbleAlign: 'items-start',
-      iconBg: 'bg-[var(--color-neo-progress)]',
+      iconBg: 'bg-gradient-to-br from-[var(--color-accent-primary)] to-[var(--color-accent-secondary)]',
     },
     system: {
       icon: Info,
-      bgColor: 'bg-[var(--color-neo-done)]',
-      borderColor: 'border-[var(--color-neo-border)]',
+      bgColor: 'bg-[var(--color-success)]/20',
+      textColor: 'text-[var(--color-success)]',
       align: 'justify-center',
       bubbleAlign: 'items-center',
-      iconBg: 'bg-[var(--color-neo-done)]',
+      iconBg: 'bg-[var(--color-success)]',
     },
   }
 
@@ -59,10 +59,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
         <div
           className={`
             ${config.bgColor}
-            border-2 ${config.borderColor}
+            ${config.textColor}
+            border border-[var(--color-success)]/30
             px-4 py-2
             text-sm font-mono
-            shadow-[2px_2px_0px_rgba(0,0,0,1)]
+            rounded-xl
           `}
         >
           <span className="flex items-center gap-2">
@@ -83,9 +84,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
             <div
               className={`
                 ${config.iconBg}
-                border-2 border-[var(--color-neo-border)]
                 p-1.5
-                shadow-[2px_2px_0px_rgba(0,0,0,1)]
+                rounded-lg
                 flex-shrink-0
               `}
             >
@@ -96,15 +96,17 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <div
             className={`
               ${config.bgColor}
-              border-3 ${config.borderColor}
+              ${config.textColor}
+              border border-[var(--color-border)]
               px-4 py-3
-              shadow-[4px_4px_0px_rgba(0,0,0,1)]
-              ${isStreaming ? 'animate-pulse-neo' : ''}
+              rounded-2xl
+              ${role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'}
+              ${isStreaming ? 'animate-pulse' : ''}
             `}
           >
             {/* Parse content for basic markdown-like formatting */}
             {content && (
-              <div className="whitespace-pre-wrap text-sm leading-relaxed text-[#1a1a1a]">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">
                 {content.split('\n').map((line, i) => {
                   // Bold text
                   const boldRegex = /\*\*(.*?)\*\*/g
@@ -117,7 +119,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       parts.push(line.slice(lastIndex, match.index))
                     }
                     parts.push(
-                      <strong key={`bold-${i}-${match.index}`} className="font-bold">
+                      <strong key={`bold-${i}-${match.index}`} className="font-semibold">
                         {match[1]}
                       </strong>
                     )
@@ -144,16 +146,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 {attachments.map((attachment) => (
                   <div
                     key={attachment.id}
-                    className="border-2 border-[var(--color-neo-border)] p-1 bg-white shadow-[2px_2px_0px_rgba(0,0,0,1)]"
+                    className="border border-[var(--color-border)] rounded-lg p-1 bg-[var(--color-bg-primary)]"
                   >
                     <img
                       src={attachment.previewUrl}
                       alt={attachment.filename}
-                      className="max-w-48 max-h-48 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                      className="max-w-48 max-h-48 object-contain cursor-pointer hover:opacity-90 transition-opacity rounded"
                       onClick={() => window.open(attachment.previewUrl, '_blank')}
                       title={`${attachment.filename} (click to enlarge)`}
                     />
-                    <span className="text-xs text-[var(--color-neo-text-secondary)] block mt-1 text-center">
+                    <span className="text-xs text-[var(--color-text-tertiary)] block mt-1 text-center">
                       {attachment.filename}
                     </span>
                   </div>
@@ -163,7 +165,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
             {/* Streaming indicator */}
             {isStreaming && (
-              <span className="inline-block w-2 h-4 bg-[var(--color-neo-accent)] ml-1 animate-pulse" />
+              <span className="inline-block w-2 h-4 bg-[var(--color-accent-primary)] ml-1 animate-pulse rounded" />
             )}
           </div>
 
@@ -171,19 +173,18 @@ export function ChatMessage({ message }: ChatMessageProps) {
             <div
               className={`
                 ${config.iconBg}
-                border-2 border-[var(--color-neo-border)]
                 p-1.5
-                shadow-[2px_2px_0px_rgba(0,0,0,1)]
+                rounded-lg
                 flex-shrink-0
               `}
             >
-              <Icon size={16} />
+              <Icon size={16} className="text-white" />
             </div>
           )}
         </div>
 
         {/* Timestamp */}
-        <span className="text-xs text-[var(--color-neo-text-secondary)] font-mono px-2">
+        <span className="text-xs text-[var(--color-text-tertiary)] font-mono px-2">
           {timeString}
         </span>
       </div>

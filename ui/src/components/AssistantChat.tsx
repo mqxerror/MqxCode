@@ -6,7 +6,8 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Loader2, Wifi, WifiOff } from 'lucide-react'
+import { Send, Loader2, WifiOff } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAssistantChat } from '../hooks/useAssistantChat'
 import { ChatMessage } from './ChatMessage'
 
@@ -74,64 +75,106 @@ export function AssistantChat({ projectName }: AssistantChatProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Connection status indicator */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b-2 border-[var(--color-neo-border)] bg-[var(--color-neo-bg)]">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         {connectionStatus === 'connected' ? (
           <>
-            <Wifi size={14} className="text-[var(--color-neo-done)]" />
-            <span className="text-xs text-[var(--color-neo-text-secondary)]">Connected</span>
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-success)] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--color-success)]"></span>
+            </span>
+            <span className="text-xs text-[var(--color-text-secondary)]">Connected</span>
           </>
         ) : connectionStatus === 'connecting' ? (
           <>
-            <Loader2 size={14} className="text-[var(--color-neo-progress)] animate-spin" />
-            <span className="text-xs text-[var(--color-neo-text-secondary)]">Connecting...</span>
+            <Loader2 size={12} className="text-[var(--color-accent-primary)] animate-spin" />
+            <span className="text-xs text-[var(--color-text-secondary)]">Connecting...</span>
           </>
         ) : (
           <>
-            <WifiOff size={14} className="text-[var(--color-neo-danger)]" />
-            <span className="text-xs text-[var(--color-neo-text-secondary)]">Disconnected</span>
+            <WifiOff size={12} className="text-[var(--color-error)]" />
+            <span className="text-xs text-[var(--color-text-secondary)]">Disconnected</span>
           </>
         )}
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto bg-[var(--color-neo-bg)]">
+      <div className="flex-1 overflow-y-auto bg-[var(--color-bg-primary)] scrollbar-thin">
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-[var(--color-neo-text-secondary)] text-sm">
+          <div className="flex flex-col items-center justify-center h-full text-[var(--color-text-tertiary)] text-sm px-6 text-center">
             {isLoading ? (
-              <div className="flex items-center gap-2">
-                <Loader2 size={16} className="animate-spin" />
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2"
+              >
+                <Loader2 size={16} className="animate-spin text-[var(--color-accent-primary)]" />
                 <span>Connecting to assistant...</span>
-              </div>
+              </motion.div>
             ) : (
-              <span>Ask me anything about the codebase</span>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-2"
+              >
+                <p className="text-base">Ask me anything about the codebase</p>
+                <p className="text-xs opacity-60">I can help you understand code, find files, and debug issues</p>
+              </motion.div>
             )}
           </div>
         ) : (
           <div className="py-4">
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
+            <AnimatePresence>
+              {messages.map((message) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChatMessage message={message} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
       {/* Loading indicator */}
-      {isLoading && messages.length > 0 && (
-        <div className="px-4 py-2 border-t-2 border-[var(--color-neo-border)] bg-[var(--color-neo-bg)]">
-          <div className="flex items-center gap-2 text-[var(--color-neo-text-secondary)] text-sm">
-            <div className="flex gap-1">
-              <span className="w-2 h-2 bg-[var(--color-neo-progress)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-2 h-2 bg-[var(--color-neo-progress)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-2 h-2 bg-[var(--color-neo-progress)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      <AnimatePresence>
+        {isLoading && messages.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)]"
+          >
+            <div className="flex items-center gap-3 text-[var(--color-text-secondary)] text-sm">
+              <div className="flex gap-1">
+                <motion.span
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+                  className="w-2 h-2 bg-[var(--color-accent-primary)] rounded-full"
+                />
+                <motion.span
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.6, repeat: Infinity, delay: 0.15 }}
+                  className="w-2 h-2 bg-[var(--color-accent-primary)] rounded-full"
+                />
+                <motion.span
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.6, repeat: Infinity, delay: 0.3 }}
+                  className="w-2 h-2 bg-[var(--color-accent-primary)] rounded-full"
+                />
+              </div>
+              <span>Thinking...</span>
             </div>
-            <span>Thinking...</span>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Input area */}
-      <div className="border-t-3 border-[var(--color-neo-border)] p-4 bg-white">
+      <div className="border-t border-[var(--color-border)] p-4 bg-[var(--color-bg-secondary)]">
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
@@ -142,20 +185,31 @@ export function AssistantChat({ projectName }: AssistantChatProps) {
             disabled={isLoading || connectionStatus !== 'connected'}
             className="
               flex-1
-              neo-input
+              bg-[var(--color-bg-primary)]
+              border border-[var(--color-border)]
+              rounded-xl
+              px-4 py-3
+              text-sm
+              text-[var(--color-text-primary)]
+              placeholder-[var(--color-text-tertiary)]
               resize-none
               min-h-[44px]
               max-h-[120px]
-              py-2.5
+              focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)]/50 focus:border-[var(--color-accent-primary)]
+              disabled:opacity-50
+              transition-all
             "
             rows={1}
           />
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleSend}
             disabled={!inputValue.trim() || isLoading || connectionStatus !== 'connected'}
             className="
-              neo-btn neo-btn-primary
+              btn btn-primary
               px-4
+              rounded-xl
               disabled:opacity-50 disabled:cursor-not-allowed
             "
             title="Send message"
@@ -165,9 +219,9 @@ export function AssistantChat({ projectName }: AssistantChatProps) {
             ) : (
               <Send size={18} />
             )}
-          </button>
+          </motion.button>
         </div>
-        <p className="text-xs text-[var(--color-neo-text-secondary)] mt-2">
+        <p className="text-xs text-[var(--color-text-tertiary)] mt-2 px-1">
           Press Enter to send, Shift+Enter for new line
         </p>
       </div>
