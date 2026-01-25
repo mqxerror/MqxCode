@@ -5,11 +5,13 @@ Pydantic Schemas
 Request/Response models for the API endpoints.
 """
 
+from __future__ import annotations
+
 import base64
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -65,9 +67,9 @@ class ProjectPrompts(BaseModel):
 
 class ProjectPromptsUpdate(BaseModel):
     """Request schema for updating project prompts."""
-    app_spec: str | None = None
-    initializer_prompt: str | None = None
-    coding_prompt: str | None = None
+    app_spec: Optional[str] = None
+    initializer_prompt: Optional[str] = None
+    coding_prompt: Optional[str] = None
 
 
 # ============================================================================
@@ -84,16 +86,16 @@ class FeatureBase(BaseModel):
 
 class FeatureCreate(FeatureBase):
     """Request schema for creating a new feature."""
-    priority: int | None = None
+    priority: Optional[int] = None
 
 
 class FeatureUpdate(BaseModel):
     """Request schema for updating a feature (partial updates allowed)."""
-    category: str | None = None
-    name: str | None = None
-    description: str | None = None
-    steps: list[str] | None = None
-    priority: int | None = None
+    category: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    steps: Optional[List[str]] = None
+    priority: Optional[int] = None
 
 
 class FeatureResponse(FeatureBase):
@@ -117,7 +119,7 @@ class FeatureListResponse(BaseModel):
 class FeatureBulkCreate(BaseModel):
     """Request schema for bulk creating features."""
     features: list[FeatureCreate]
-    starting_priority: int | None = None  # If None, appends after max priority
+    starting_priority: Optional[int] = None  # If None, appends after max priority
 
 
 class FeatureBulkCreateResponse(BaseModel):
@@ -132,12 +134,12 @@ class FeatureBulkCreateResponse(BaseModel):
 
 class AgentStartRequest(BaseModel):
     """Request schema for starting the agent."""
-    yolo_mode: bool | None = None  # None means use global settings
-    model: str | None = None  # None means use global settings
+    yolo_mode: Optional[bool] = None  # None means use global settings
+    model: Optional[str] = None  # None means use global settings
 
     @field_validator('model')
     @classmethod
-    def validate_model(cls, v: str | None) -> str | None:
+    def validate_model(cls, v: Optional[str]) -> Optional[str]:
         """Validate model is in the allowed list."""
         if v is not None and v not in VALID_MODELS:
             raise ValueError(f"Invalid model. Must be one of: {VALID_MODELS}")
@@ -147,10 +149,10 @@ class AgentStartRequest(BaseModel):
 class AgentStatus(BaseModel):
     """Current agent status."""
     status: Literal["stopped", "running", "paused", "crashed"]
-    pid: int | None = None
-    started_at: datetime | None = None
+    pid: Optional[int] = None
+    started_at: Optional[datetime] = None
     yolo_mode: bool = False
-    model: str | None = None  # Model being used by running agent
+    model: Optional[str] = None  # Model being used by running agent
 
 
 class AgentActionResponse(BaseModel):
@@ -253,16 +255,16 @@ class DirectoryEntry(BaseModel):
     path: str  # POSIX format
     is_directory: bool
     is_hidden: bool = False
-    size: int | None = None  # Bytes, for files
+    size: Optional[int] = None  # Bytes, for files
     has_children: bool = False  # True if directory has subdirectories
 
 
 class DirectoryListResponse(BaseModel):
     """Response for directory listing."""
     current_path: str  # POSIX format
-    parent_path: str | None
+    parent_path: Optional[str]
     entries: list[DirectoryEntry]
-    drives: list[DriveInfo] | None = None  # Windows only
+    drives: Optional[List[DriveInfo]] = None  # Windows only
 
 
 class PathValidationResponse(BaseModel):
@@ -309,12 +311,12 @@ class ModelsResponse(BaseModel):
 
 class SettingsUpdate(BaseModel):
     """Request schema for updating global settings."""
-    yolo_mode: bool | None = None
-    model: str | None = None
+    yolo_mode: Optional[bool] = None
+    model: Optional[str] = None
 
     @field_validator('model')
     @classmethod
-    def validate_model(cls, v: str | None) -> str | None:
+    def validate_model(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in VALID_MODELS:
             raise ValueError(f"Invalid model. Must be one of: {VALID_MODELS}")
         return v
@@ -327,16 +329,16 @@ class SettingsUpdate(BaseModel):
 
 class DevServerStartRequest(BaseModel):
     """Request schema for starting the dev server."""
-    command: str | None = None  # If None, uses effective command from config
+    command: Optional[str] = None  # If None, uses effective command from config
 
 
 class DevServerStatus(BaseModel):
     """Current dev server status."""
     status: Literal["stopped", "running", "crashed"]
-    pid: int | None = None
-    url: str | None = None
-    command: str | None = None
-    started_at: datetime | None = None
+    pid: Optional[int] = None
+    url: Optional[str] = None
+    command: Optional[str] = None
+    started_at: Optional[datetime] = None
 
 
 class DevServerActionResponse(BaseModel):
@@ -348,15 +350,15 @@ class DevServerActionResponse(BaseModel):
 
 class DevServerConfigResponse(BaseModel):
     """Response for dev server configuration."""
-    detected_type: str | None = None
-    detected_command: str | None = None
-    custom_command: str | None = None
-    effective_command: str | None = None
+    detected_type: Optional[str] = None
+    detected_command: Optional[str] = None
+    custom_command: Optional[str] = None
+    effective_command: Optional[str] = None
 
 
 class DevServerConfigUpdate(BaseModel):
     """Request schema for updating dev server configuration."""
-    custom_command: str | None = None  # None clears the custom command
+    custom_command: Optional[str] = None  # None clears the custom command
 
 
 # ============================================================================
@@ -375,4 +377,83 @@ class WSDevServerStatusMessage(BaseModel):
     """WebSocket message for dev server status changes."""
     type: Literal["dev_server_status"] = "dev_server_status"
     status: Literal["stopped", "running", "crashed"]
-    url: str | None = None
+    url: Optional[str] = None
+
+
+# ============================================================================
+# Config Schemas
+# ============================================================================
+
+
+class ConfigFile(BaseModel):
+    """Information about a configuration file."""
+    name: str
+    path: str
+    description: str
+    category: str
+
+
+class ClaudeConfig(BaseModel):
+    """Structure of the Claude configuration directory."""
+    guidance: list[ConfigFile]
+    commands: list[ConfigFile]
+    skills: list[ConfigFile]
+    agents: list[ConfigFile]
+    templates: list[ConfigFile]
+
+
+class ConfigFileContent(BaseModel):
+    """Response containing a config file's content."""
+    name: str
+    path: str
+    category: str
+    content: str
+
+
+class ConfigFileUpdate(BaseModel):
+    """Request to update a config file's content."""
+    content: str = Field(..., min_length=0, max_length=500000)
+
+
+# ============================================================================
+# Server Tasks Schemas
+# ============================================================================
+
+
+class TaskRunRequest(BaseModel):
+    """Request to run a server task."""
+    task: str = Field(
+        ...,
+        description="Predefined task name or 'custom' for custom command"
+    )
+    custom_cmd: Optional[str] = Field(
+        None,
+        description="Custom command to run (only used when task='custom')"
+    )
+
+
+class TaskResult(BaseModel):
+    """Result of a task execution."""
+    output: str
+    exit_code: int
+    command: str
+    success: bool
+
+
+class PredefinedTask(BaseModel):
+    """Information about a predefined task."""
+    name: str
+    description: str
+    command: str
+
+
+class PredefinedTasksResponse(BaseModel):
+    """List of available predefined tasks."""
+    tasks: list[PredefinedTask]
+
+
+class HealthStatus(BaseModel):
+    """System health status."""
+    agent: str = Field(..., description="Agent subsystem status")
+    database: str = Field(..., description="Database status")
+    ui: str = Field(..., description="UI build status")

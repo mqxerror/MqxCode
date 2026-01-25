@@ -1,29 +1,48 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useProjects, useFeatures, useAgentStatus, useSettings } from './hooks/useProjects'
 import { useProjectWebSocket } from './hooks/useWebSocket'
 import { useFeatureSound } from './hooks/useFeatureSound'
 import { useCelebration } from './hooks/useCelebration'
 import { useTheme } from './contexts/ThemeContext'
-import { PixelatedCanvas } from './components/aceternity/pixelated-canvas'
 
 const STORAGE_KEY = 'autocoder-selected-project'
+
+// Core components - loaded immediately
 import { ProjectSelector } from './components/ProjectSelector'
 import { KanbanBoard } from './components/KanbanBoard'
 import { AgentControl } from './components/AgentControl'
 import { ProgressDashboard } from './components/ProgressDashboard'
-import { SetupWizard } from './components/SetupWizard'
-import { AddFeatureForm } from './components/AddFeatureForm'
-import { FeatureModal } from './components/FeatureModal'
-import { DebugLogViewer, type TabType } from './components/DebugLogViewer'
 import { AgentThought } from './components/AgentThought'
 import { AssistantFAB } from './components/AssistantFAB'
-import { AssistantPanel } from './components/AssistantPanel'
-import { ExpandProjectModal } from './components/ExpandProjectModal'
-import { SettingsModal } from './components/SettingsModal'
 import { DevServerControl } from './components/DevServerControl'
-import { Loader2, Settings, Moon, Sun } from 'lucide-react'
+import { Loader2, Settings, Moon, Sun, Bug, Terminal, MessageCircle, FileText, Settings2, MonitorCog } from 'lucide-react'
+import { PixelatedCanvas } from './components/aceternity/pixelated-canvas'
 import type { Feature } from './lib/types'
+import type { TabType } from './components/DebugLogViewer'
+
+// Lazy loaded components - only loaded when needed
+const SetupWizard = lazy(() => import('./components/SetupWizard').then(m => ({ default: m.SetupWizard })))
+const AddFeatureForm = lazy(() => import('./components/AddFeatureForm').then(m => ({ default: m.AddFeatureForm })))
+const FeatureModal = lazy(() => import('./components/FeatureModal').then(m => ({ default: m.FeatureModal })))
+const DebugLogViewer = lazy(() => import('./components/DebugLogViewer').then(m => ({ default: m.DebugLogViewer })))
+const AssistantPanel = lazy(() => import('./components/AssistantPanel').then(m => ({ default: m.AssistantPanel })))
+const ExpandProjectModal = lazy(() => import('./components/ExpandProjectModal').then(m => ({ default: m.ExpandProjectModal })))
+const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })))
+const SlidePanel = lazy(() => import('./components/SlidePanel').then(m => ({ default: m.SlidePanel })))
+const SpecViewer = lazy(() => import('./components/spec-viewer').then(m => ({ default: m.SpecViewer })))
+const CommandCenter = lazy(() => import('./components/command-center').then(m => ({ default: m.CommandCenter })))
+const ServerTasks = lazy(() => import('./components/command-center').then(m => ({ default: m.ServerTasks })))
+const CreativeSidebar = lazy(() => import('./components/CreativeSidebar').then(m => ({ default: m.CreativeSidebar })))
+
+// Loading fallback for lazy components
+function LoadingFallback() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <Loader2 className="animate-spin text-[var(--color-accent-primary)]" size={32} />
+    </div>
+  )
+}
 
 function App() {
   // Initialize selected project from localStorage
@@ -45,6 +64,18 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [isSpecCreating, setIsSpecCreating] = useState(false)
 
+  // Sidebar panel states
+  const [showSpecPanel, setShowSpecPanel] = useState(false)
+  const [showConfigPanel, setShowConfigPanel] = useState(false)
+  const [showTasksPanel, setShowTasksPanel] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try {
+      return localStorage.getItem('sidebar-open') !== 'false'
+    } catch {
+      return true
+    }
+  })
+
   const queryClient = useQueryClient()
   const { theme, toggleTheme } = useTheme()
   const { data: projects, isLoading: projectsLoading } = useProjects()
@@ -58,6 +89,19 @@ function App() {
 
   // Celebrate when all features are complete
   useCelebration(features, selectedProject)
+
+  // Toggle sidebar and persist state
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarOpen(prev => {
+      const newState = !prev
+      try {
+        localStorage.setItem('sidebar-open', String(newState))
+      } catch {
+        // localStorage not available
+      }
+      return newState
+    })
+  }, [])
 
   // Persist selected project to localStorage
   const handleSelectProject = useCallback((project: string | null) => {
@@ -169,28 +213,55 @@ function App() {
   }
 
   if (!setupComplete) {
-    return <SetupWizard onComplete={() => setSetupComplete(true)} />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <SetupWizard onComplete={() => setSetupComplete(true)} />
+      </Suspense>
+    )
   }
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
+      {/* Creative Sidebar */}
+      {selectedProject && (
+        <Suspense fallback={null}>
+          <CreativeSidebar
+            isOpen={sidebarOpen}
+            onToggle={handleSidebarToggle}
+            features={features}
+            agentStatus={wsState.agentStatus}
+            progress={progress}
+            onOpenSpec={() => setShowSpecPanel(true)}
+            onOpenConfig={() => setShowConfigPanel(true)}
+            onOpenTasks={() => setShowTasksPanel(true)}
+            onFeatureClick={setSelectedFeature}
+          />
+        </Suspense>
+      )}
+
+      {/* Main content wrapper with sidebar offset */}
+      <div
+        className="transition-all duration-300"
+        style={{ marginLeft: selectedProject ? (sidebarOpen ? 280 : 64) : 0 }}
+      >
       {/* Header */}
-      <header className="sticky top-0 z-40 glass border-b border-[var(--color-border)]">
+      <header className="sticky top-0 z-40 bg-[var(--color-bg-primary)] border-b border-[var(--color-border)]">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             {/* Logo and Title */}
             <div className="flex items-center gap-3">
-              <PixelatedCanvas
-                src="/images/mqx-logo.jpg"
-                width={40}
-                height={40}
-                pixelSize={4}
-                distortionRadius={30}
-                distortionStrength={8}
-                className="rounded-lg"
-                containerClassName="rounded-lg overflow-hidden"
-                grayscale={true}
-              />
+              <div className="rounded-lg overflow-hidden bg-black">
+                <PixelatedCanvas
+                  src="/images/mqx-logo.jpg"
+                  width={48}
+                  height={48}
+                  pixelSize={4}
+                  grayscale={true}
+                  animateOnHover={true}
+                  distortionRadius={30}
+                  distortionStrength={8}
+                />
+              </div>
               <h1 className="font-display text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
                 MqxCode
               </h1>
@@ -219,33 +290,115 @@ function App() {
                     url={wsState.devServerUrl}
                   />
 
-                  <button
-                    onClick={() => setShowSettings(true)}
-                    className="btn btn-ghost btn-icon"
-                    title="Settings (,)"
-                    aria-label="Open Settings"
-                  >
-                    <Settings size={18} />
-                  </button>
-
                   {/* GLM Mode Badge */}
                   {settings?.glm_mode && (
                     <span className="badge badge-primary" title="Using GLM API (configured via .env)">
                       GLM
                     </span>
                   )}
+
+                  {/* Quick action buttons */}
+                  <div className="hidden md:flex items-center gap-1">
+                    <button
+                      onClick={() => setDebugOpen(!debugOpen)}
+                      className="btn btn-ghost btn-icon"
+                      title="Debug (D)"
+                    >
+                      <Bug size={18} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDebugOpen(true)
+                        setDebugActiveTab('terminal')
+                      }}
+                      className="btn btn-ghost btn-icon"
+                      title="Terminal (T)"
+                    >
+                      <Terminal size={18} />
+                    </button>
+                    <button
+                      onClick={() => setAssistantOpen(!assistantOpen)}
+                      className="btn btn-ghost btn-icon"
+                      title="Assistant (A)"
+                    >
+                      <MessageCircle size={18} />
+                    </button>
+
+                    {/* Divider */}
+                    <div className="w-px h-5 bg-[var(--color-border)] mx-1" />
+
+                    {/* Tools buttons */}
+                    <button
+                      onClick={() => setShowSpecPanel(true)}
+                      className="btn btn-ghost btn-icon"
+                      title="Spec Viewer"
+                    >
+                      <FileText size={18} />
+                    </button>
+                    <button
+                      onClick={() => setShowConfigPanel(true)}
+                      className="btn btn-ghost btn-icon"
+                      title="Config Center"
+                    >
+                      <Settings2 size={18} />
+                    </button>
+                    <button
+                      onClick={() => setShowTasksPanel(true)}
+                      className="btn btn-ghost btn-icon"
+                      title="Server Tasks"
+                    >
+                      <MonitorCog size={18} />
+                    </button>
+
+                    {/* Divider */}
+                    <div className="w-px h-5 bg-[var(--color-border)] mx-1" />
+
+                    <button
+                      onClick={() => setShowSettings(true)}
+                      className="btn btn-ghost btn-icon"
+                      title="Settings (,)"
+                    >
+                      <Settings size={18} />
+                    </button>
+                    <button
+                      onClick={toggleTheme}
+                      className="btn btn-ghost btn-icon"
+                      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                    >
+                      {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                    </button>
+                  </div>
+
+                  {/* Mobile buttons */}
+                  <div className="flex md:hidden items-center gap-2">
+                    <button
+                      onClick={() => setShowSettings(true)}
+                      className="btn btn-ghost btn-icon"
+                      title="Settings (,)"
+                    >
+                      <Settings size={18} />
+                    </button>
+                    <button
+                      onClick={toggleTheme}
+                      className="btn btn-ghost btn-icon"
+                      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                    >
+                      {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                    </button>
+                  </div>
                 </>
               )}
 
-              {/* Theme Toggle */}
-              <button
-                onClick={toggleTheme}
-                className="btn btn-ghost btn-icon"
-                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-                aria-label="Toggle theme"
-              >
-                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
+              {/* Theme toggle when no project selected */}
+              {!selectedProject && (
+                <button
+                  onClick={toggleTheme}
+                  className="btn btn-ghost btn-icon"
+                  title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                >
+                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -257,26 +410,29 @@ function App() {
         style={{ paddingBottom: debugOpen ? debugPanelHeight + 32 : undefined }}
       >
         {!selectedProject ? (
-          <div className="empty-state mt-12 animate-fade-in-up">
-            <div className="mb-8">
-              <PixelatedCanvas
-                src="/images/mqx-logo.jpg"
-                width={200}
-                height={200}
-                pixelSize={8}
-                distortionRadius={80}
-                distortionStrength={15}
-                className="rounded-2xl mx-auto"
-                containerClassName="rounded-2xl overflow-hidden mx-auto shadow-2xl"
-                grayscale={true}
-              />
+          <div className="mt-12">
+            <div className="empty-state py-16">
+              <div className="mb-8 flex justify-center">
+                <div className="rounded-2xl overflow-hidden bg-black shadow-lg">
+                  <PixelatedCanvas
+                    src="/images/mqx-logo.jpg"
+                    width={200}
+                    height={200}
+                    pixelSize={6}
+                    grayscale={true}
+                    animateOnHover={true}
+                    distortionRadius={80}
+                    distortionStrength={12}
+                  />
+                </div>
+              </div>
+              <h2 className="font-display text-3xl font-bold mb-3 text-[var(--color-text-primary)]">
+                Welcome to MqxCode
+              </h2>
+              <p className="text-[var(--color-text-secondary)] mb-4 text-lg">
+                Select a project from the dropdown above or create a new one to get started.
+              </p>
             </div>
-            <h2 className="font-display text-3xl font-bold mb-3 text-[var(--color-text-primary)]">
-              Welcome to MqxCode
-            </h2>
-            <p className="text-[var(--color-text-secondary)] mb-4 text-lg">
-              Select a project from the dropdown above or create a new one to get started.
-            </p>
           </div>
         ) : (
           <div className="space-y-8">
@@ -322,50 +478,107 @@ function App() {
         )}
       </main>
 
-      {/* Add Feature Modal */}
-      {showAddFeature && selectedProject && (
-        <AddFeatureForm
-          projectName={selectedProject}
-          onClose={() => setShowAddFeature(false)}
-        />
-      )}
+      {/* Lazy loaded modals wrapped in Suspense */}
+      <Suspense fallback={<LoadingFallback />}>
+        {/* Add Feature Modal */}
+        {showAddFeature && selectedProject && (
+          <AddFeatureForm
+            projectName={selectedProject}
+            onClose={() => setShowAddFeature(false)}
+          />
+        )}
 
-      {/* Feature Detail Modal */}
-      {selectedFeature && selectedProject && (
-        <FeatureModal
-          feature={selectedFeature}
-          projectName={selectedProject}
-          onClose={() => setSelectedFeature(null)}
-        />
-      )}
+        {/* Feature Detail Modal */}
+        {selectedFeature && selectedProject && (
+          <FeatureModal
+            feature={selectedFeature}
+            projectName={selectedProject}
+            onClose={() => setSelectedFeature(null)}
+          />
+        )}
 
-      {/* Expand Project Modal - AI-powered bulk feature creation */}
-      {showExpandProject && selectedProject && (
-        <ExpandProjectModal
-          isOpen={showExpandProject}
-          projectName={selectedProject}
-          onClose={() => setShowExpandProject(false)}
-          onFeaturesAdded={() => {
-            // Invalidate features query to refresh the kanban board
-            queryClient.invalidateQueries({ queryKey: ['features', selectedProject] })
-          }}
-        />
-      )}
+        {/* Expand Project Modal - AI-powered bulk feature creation */}
+        {showExpandProject && selectedProject && (
+          <ExpandProjectModal
+            isOpen={showExpandProject}
+            projectName={selectedProject}
+            onClose={() => setShowExpandProject(false)}
+            onFeaturesAdded={() => {
+              // Invalidate features query to refresh the kanban board
+              queryClient.invalidateQueries({ queryKey: ['features', selectedProject] })
+            }}
+          />
+        )}
+
+        {/* Settings Modal */}
+        {showSettings && (
+          <SettingsModal onClose={() => setShowSettings(false)} />
+        )}
+
+        {/* Spec Viewer Panel */}
+        {showSpecPanel && selectedProject && (
+          <SlidePanel
+            isOpen={showSpecPanel}
+            onClose={() => setShowSpecPanel(false)}
+            title="Spec Viewer"
+            icon={<FileText size={18} className="text-[var(--color-accent-primary)]" />}
+            width="2xl"
+          >
+            <SpecViewer projectName={selectedProject} className="h-full" />
+          </SlidePanel>
+        )}
+
+        {/* Config Center Panel */}
+        {showConfigPanel && (
+          <SlidePanel
+            isOpen={showConfigPanel}
+            onClose={() => setShowConfigPanel(false)}
+            title="Config Center"
+            icon={<Settings2 size={18} className="text-[var(--color-accent-primary)]" />}
+            width="2xl"
+          >
+            <CommandCenter />
+          </SlidePanel>
+        )}
+
+        {/* Server Tasks Panel */}
+        {showTasksPanel && selectedProject && (
+          <SlidePanel
+            isOpen={showTasksPanel}
+            onClose={() => setShowTasksPanel(false)}
+            title="Server Tasks"
+            icon={<MonitorCog size={18} className="text-[var(--color-accent-primary)]" />}
+            width="xl"
+          >
+            <div className="p-4">
+              <ServerTasks projectName={selectedProject} />
+            </div>
+          </SlidePanel>
+        )}
+      </Suspense>
+      </div> {/* End main content wrapper */}
 
       {/* Debug Log Viewer - fixed to bottom */}
       {selectedProject && (
-        <DebugLogViewer
-          logs={wsState.logs}
-          devLogs={wsState.devLogs}
-          isOpen={debugOpen}
-          onToggle={() => setDebugOpen(!debugOpen)}
-          onClear={wsState.clearLogs}
-          onClearDevLogs={wsState.clearDevLogs}
-          onHeightChange={setDebugPanelHeight}
-          projectName={selectedProject}
-          activeTab={debugActiveTab}
-          onTabChange={setDebugActiveTab}
-        />
+        <Suspense fallback={null}>
+          <DebugLogViewer
+            logs={wsState.logs}
+            parsedLogs={wsState.parsedLogs}
+            devLogs={wsState.devLogs}
+            parsedDevLogs={wsState.parsedDevLogs}
+            agentContext={wsState.agentContext}
+            agentStatus={wsState.agentStatus}
+            isOpen={debugOpen}
+            onToggle={() => setDebugOpen(!debugOpen)}
+            onClear={wsState.clearLogs}
+            onClearDevLogs={wsState.clearDevLogs}
+            onHeightChange={setDebugPanelHeight}
+            projectName={selectedProject}
+            activeTab={debugActiveTab}
+            onTabChange={setDebugActiveTab}
+            sidebarWidth={sidebarOpen ? 280 : 64}
+          />
+        </Suspense>
       )}
 
       {/* Assistant FAB and Panel - hide when expand modal or spec creation is open */}
@@ -375,17 +588,14 @@ function App() {
             onClick={() => setAssistantOpen(!assistantOpen)}
             isOpen={assistantOpen}
           />
-          <AssistantPanel
-            projectName={selectedProject}
-            isOpen={assistantOpen}
-            onClose={() => setAssistantOpen(false)}
-          />
+          <Suspense fallback={null}>
+            <AssistantPanel
+              projectName={selectedProject}
+              isOpen={assistantOpen}
+              onClose={() => setAssistantOpen(false)}
+            />
+          </Suspense>
         </>
-      )}
-
-      {/* Settings Modal */}
-      {showSettings && (
-        <SettingsModal onClose={() => setShowSettings(false)} />
       )}
     </div>
   )

@@ -14,7 +14,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import Column, DateTime, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -272,7 +272,7 @@ def unregister_project(name: str) -> bool:
     return True
 
 
-def get_project_path(name: str) -> Path | None:
+def get_project_path(name: str) -> Optional[Path]:
     """
     Look up a project's path by name.
 
@@ -293,7 +293,7 @@ def get_project_path(name: str) -> Path | None:
         session.close()
 
 
-def list_registered_projects() -> dict[str, dict[str, Any]]:
+def list_registered_projects() -> Dict[str, Dict[str, Any]]:
     """
     Get all registered projects.
 
@@ -315,7 +315,7 @@ def list_registered_projects() -> dict[str, dict[str, Any]]:
         session.close()
 
 
-def get_project_info(name: str) -> dict[str, Any] | None:
+def get_project_info(name: str) -> Optional[Dict[str, Any]]:
     """
     Get full info about a project.
 
@@ -420,7 +420,7 @@ def cleanup_stale_projects() -> list[str]:
     return removed
 
 
-def list_valid_projects() -> list[dict[str, Any]]:
+def list_valid_projects() -> List[Dict[str, Any]]:
     """
     List all projects that have valid, accessible paths.
 
@@ -450,7 +450,7 @@ def list_valid_projects() -> list[dict[str, Any]]:
 # Settings CRUD Functions
 # =============================================================================
 
-def get_setting(key: str, default: str | None = None) -> str | None:
+def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
     """
     Get a setting value by key.
 

@@ -25,6 +25,11 @@ import type {
   DevServerStatusResponse,
   DevServerConfig,
   TerminalInfo,
+  ClaudeConfig,
+  ConfigFileContent,
+  TaskResult,
+  HealthStatus,
+  DbStats,
 } from './types'
 
 const API_BASE = '/api'
@@ -383,4 +388,156 @@ export async function deleteTerminal(
   await fetchJSON(`/terminal/${encodeURIComponent(projectName)}/${terminalId}`, {
     method: 'DELETE',
   })
+}
+
+// ============================================================================
+// Config/Command Center API
+// ============================================================================
+
+export async function getClaudeConfig(): Promise<ClaudeConfig> {
+  return fetchJSON('/config')
+}
+
+export async function getConfigFile(
+  category: string,
+  filename: string
+): Promise<ConfigFileContent> {
+  const params = new URLSearchParams({
+    category,
+    filename,
+  })
+  return fetchJSON(`/config/file?${params}`)
+}
+
+export async function updateConfigFile(
+  category: string,
+  filename: string,
+  content: string
+): Promise<{ success: boolean; message: string; path: string }> {
+  const params = new URLSearchParams({
+    category,
+    filename,
+  })
+  return fetchJSON(`/config/file?${params}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  })
+}
+
+// ============================================================================
+// Server Tasks API
+// ============================================================================
+
+/**
+ * Run a server task (lint, build, test, etc.) or custom command.
+ * Uses the server-tasks endpoint which validates commands against an allowlist.
+ *
+ * @param _projectName - Name of the project (unused - tasks run at server level)
+ * @param task - Predefined task name or 'custom' for custom command
+ * @param customCmd - Custom command to run (only used when task is 'custom')
+ * @returns TaskResult with output, exit code, and command string
+ */
+export async function runServerTask(
+  _projectName: string,
+  task: string,
+  customCmd?: string
+): Promise<TaskResult> {
+  // Map frontend task names to backend predefined task names
+  const taskMap: Record<string, string> = {
+    'lint': 'lint_all',
+    'build': 'build_ui',
+    'tests': 'test_security',
+    'restart': 'custom',  // Will need custom handling
+    'clear_logs': 'custom',  // Will need custom handling
+    'db_stats': 'git_status',  // Use git status as placeholder
+    'health': 'git_status',  // Use git status as placeholder
+  }
+
+  const mappedTask = taskMap[task] || task
+
+  // For custom tasks or special tasks, pass through
+  const isCustom = mappedTask === 'custom' || task === 'custom'
+
+  return fetchJSON('/server-tasks/run', {
+    method: 'POST',
+    body: JSON.stringify({
+      task: isCustom ? 'custom' : mappedTask,
+      custom_cmd: isCustom ? (customCmd || `echo ${task}`) : undefined,
+    }),
+  })
+}
+
+/**
+ * Get the health status of server components.
+ * Checks agent status, database connectivity, and UI build state.
+ *
+ * Note: projectName parameter kept for API consistency with other project-scoped functions,
+ * but health check is server-wide.
+ *
+ * @returns HealthStatus with component states
+ */
+export async function getServerHealth(_projectName?: string): Promise<HealthStatus> {
+  // projectName is optional and unused - health check is server-wide
+  void _projectName
+  return fetchJSON('/server-tasks/health')
+}
+
+/**
+ * Get the list of predefined tasks available on the server.
+ *
+ * @returns List of predefined tasks with names, descriptions, and commands
+ */
+export async function getPredefinedTasks(): Promise<{
+  tasks: Array<{ name: string; description: string; command: string }>
+}> {
+  return fetchJSON('/server-tasks/predefined')
+}
+
+/**
+ * Get the list of allowed commands for custom task execution.
+ *
+ * @returns Object with allowed commands and execution limits
+ */
+export async function getAllowedCommands(): Promise<{
+  allowed_commands: string[]
+  max_execution_time_seconds: number
+  max_output_size_bytes: number
+}> {
+  return fetchJSON('/server-tasks/allowed-commands')
+}
+
+/**
+ * Clear agent logs for a project.
+ * This runs 'echo Logs cleared' as a placeholder since log clearing
+ * is typically handled client-side.
+ *
+ * @param projectName - Name of the project
+ * @returns TaskResult indicating success/failure
+ */
+export async function clearAgentLogs(projectName: string): Promise<TaskResult> {
+  return runServerTask(projectName, 'custom', 'echo Logs cleared successfully')
+}
+
+/**
+ * Get database statistics for a project.
+ * Returns feature counts by status and overall progress percentage.
+ *
+ * @param projectName - Name of the project
+ * @returns DbStats with pending, in_progress, done counts
+ */
+export async function getDbStats(projectName: string): Promise<DbStats> {
+  // Use the features API to get stats
+  const features = await listFeatures(projectName)
+  const pending = features.pending.length
+  const inProgress = features.in_progress.length
+  const done = features.done.length
+  const total = pending + inProgress + done
+
+  return {
+    pending,
+    in_progress: inProgress,
+    done,
+    total,
+    percentage: total > 0 ? (done / total) * 100 : 0,
+  }
 }

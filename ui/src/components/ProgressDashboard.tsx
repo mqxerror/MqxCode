@@ -1,6 +1,4 @@
-import { WifiOff, CheckCircle, Clock } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { SpotlightCard } from './aceternity'
+import { WifiOff, CheckCircle, Clock, TrendingUp } from 'lucide-react'
 
 interface ProgressDashboardProps {
   passing: number
@@ -19,28 +17,23 @@ export function ProgressDashboard({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      {/* Main Progress Card */}
-      <SpotlightCard
-        className="md:col-span-2 card p-6"
-        spotlightColor="rgba(99, 102, 241, 0.15)"
-      >
+      {/* Main Progress Card - spans 2 columns */}
+      <div className="md:col-span-2 card p-6 hover:shadow-[0_0_20px_rgba(99,102,241,0.1)] transition-shadow duration-200">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-lg font-bold text-[var(--color-text-primary)]">
-            Progress
-          </h2>
+          <div className="flex items-center gap-2">
+            <TrendingUp size={18} className="text-[var(--color-accent-primary)]" />
+            <h2 className="font-display text-lg font-bold text-[var(--color-text-primary)]">
+              Progress
+            </h2>
+          </div>
           <div className="flex items-center gap-2">
             {isConnected ? (
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="flex items-center gap-2"
-              >
+              <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-success)] opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--color-success)]"></span>
                 </span>
                 <span className="text-sm text-[var(--color-success)] font-medium">Live</span>
-              </motion.div>
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <WifiOff size={14} className="text-[var(--color-danger)]" />
@@ -52,15 +45,9 @@ export function ProgressDashboard({
 
         {/* Large Percentage */}
         <div className="text-center mb-6">
-          <motion.span
-            key={percentage}
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 200, damping: 15 }}
-            className="font-display text-6xl font-bold gradient-text"
-          >
+          <span className="font-display text-6xl font-bold gradient-text">
             {percentage.toFixed(1)}
-          </motion.span>
+          </span>
           <span className="font-display text-2xl font-bold text-[var(--color-text-tertiary)]">
             %
           </span>
@@ -68,14 +55,12 @@ export function ProgressDashboard({
 
         {/* Progress Bar */}
         <div className="relative h-3 bg-[var(--color-bg-tertiary)] rounded-full overflow-hidden mb-2">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${percentage}%` }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="absolute inset-y-0 left-0 rounded-full"
+          <div
+            className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
             style={{
+              width: `${percentage}%`,
               background: 'linear-gradient(90deg, var(--color-accent-primary), var(--color-accent-secondary))',
-              boxShadow: percentage > 0 ? '0 0 20px rgba(99, 102, 241, 0.5)' : 'none'
+              boxShadow: percentage > 0 ? '0 0 15px rgba(99, 102, 241, 0.4)' : 'none'
             }}
           />
         </div>
@@ -84,13 +69,10 @@ export function ProgressDashboard({
           <span>{passing} completed</span>
           <span>{total} total</span>
         </div>
-      </SpotlightCard>
+      </div>
 
-      {/* Stats Cards */}
-      <SpotlightCard
-        className="card p-5"
-        spotlightColor="rgba(16, 185, 129, 0.15)"
-      >
+      {/* Completed Stats Card */}
+      <div className="card p-5 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)] transition-shadow duration-200">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-medium text-[var(--color-text-secondary)]">
             Completed
@@ -99,23 +81,16 @@ export function ProgressDashboard({
             <CheckCircle size={18} />
           </span>
         </div>
-        <motion.span
-          key={passing}
-          initial={{ scale: 0.8 }}
-          animate={{ scale: 1 }}
-          className="text-3xl font-bold font-display text-[var(--color-success)]"
-        >
+        <span className="text-3xl font-bold font-display text-[var(--color-success)]">
           {passing}
-        </motion.span>
+        </span>
         <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
           features done
         </p>
-      </SpotlightCard>
+      </div>
 
-      <SpotlightCard
-        className="card p-5"
-        spotlightColor="rgba(245, 158, 11, 0.15)"
-      >
+      {/* Pending Stats Card */}
+      <div className="card p-5 hover:shadow-[0_0_20px_rgba(245,158,11,0.15)] transition-shadow duration-200">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-medium text-[var(--color-text-secondary)]">
             Pending
@@ -124,18 +99,13 @@ export function ProgressDashboard({
             <Clock size={18} />
           </span>
         </div>
-        <motion.span
-          key={pending}
-          initial={{ scale: 0.8 }}
-          animate={{ scale: 1 }}
-          className="text-3xl font-bold font-display text-[var(--color-warning)]"
-        >
+        <span className="text-3xl font-bold font-display text-[var(--color-warning)]">
           {pending}
-        </motion.span>
+        </span>
         <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
           remaining
         </p>
-      </SpotlightCard>
+      </div>
     </div>
   )
 }

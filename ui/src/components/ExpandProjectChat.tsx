@@ -16,6 +16,10 @@ import type { ImageAttachment } from '../lib/types'
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
 
+// Message length validation
+const MAX_MESSAGE_LENGTH = 100000 // ~100K chars
+const WARN_MESSAGE_LENGTH = 50000 // Warn above this
+
 interface ExpandProjectChatProps {
   projectName: string
   onComplete: (featuresAdded: number) => void
@@ -77,6 +81,14 @@ export function ExpandProjectChat({
     const trimmed = input.trim()
     // Allow sending if there's text OR attachments
     if ((!trimmed && pendingAttachments.length === 0) || isLoading) return
+
+    // Validate message length
+    if (trimmed.length > MAX_MESSAGE_LENGTH) {
+      setError(
+        `Message is too long (${trimmed.length.toLocaleString()} chars). Maximum is ${MAX_MESSAGE_LENGTH.toLocaleString()} characters.`
+      )
+      return
+    }
 
     sendMessage(trimmed, pendingAttachments.length > 0 ? pendingAttachments : undefined)
     setInput('')
@@ -147,33 +159,55 @@ export function ExpandProjectChat({
     e.preventDefault()
   }, [])
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault()
+          const file = items[i].getAsFile()
+          if (file) {
+            // Create a FileList-like object
+            const dt = new DataTransfer()
+            dt.items.add(file)
+            handleFileSelect(dt.files)
+          }
+          break
+        }
+      }
+    },
+    [handleFileSelect]
+  )
+
   // Connection status indicator
   const ConnectionIndicator = () => {
     switch (connectionStatus) {
       case 'connected':
         return (
-          <span className="flex items-center gap-1 text-xs text-[var(--color-neo-done)]">
+          <span className="flex items-center gap-1 text-xs text-[var(--color-success)]">
             <Wifi size={12} />
             Connected
           </span>
         )
       case 'connecting':
         return (
-          <span className="flex items-center gap-1 text-xs text-[var(--color-neo-pending)]">
+          <span className="flex items-center gap-1 text-xs text-[var(--color-warning)]">
             <Wifi size={12} className="animate-pulse" />
             Connecting...
           </span>
         )
       case 'error':
         return (
-          <span className="flex items-center gap-1 text-xs text-[var(--color-neo-danger)]">
+          <span className="flex items-center gap-1 text-xs text-[var(--color-danger)]">
             <WifiOff size={12} />
             Error
           </span>
         )
       default:
         return (
-          <span className="flex items-center gap-1 text-xs text-[var(--color-neo-text-secondary)]">
+          <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
             <WifiOff size={12} />
             Disconnected
           </span>
@@ -182,16 +216,16 @@ export function ExpandProjectChat({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[var(--color-neo-bg)]">
+    <div className="flex flex-col h-full bg-[var(--color-bg-primary)]">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b-3 border-[var(--color-neo-border)] bg-white">
+      <div className="flex items-center justify-between p-4 border-b-2 border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
         <div className="flex items-center gap-3">
-          <h2 className="font-display font-bold text-lg text-[#1a1a1a]">
+          <h2 className="font-display font-bold text-lg text-[var(--color-text-primary)]">
             Expand Project: {projectName}
           </h2>
           <ConnectionIndicator />
           {featuresCreated > 0 && (
-            <span className="flex items-center gap-1 text-sm text-[var(--color-neo-done)] font-bold">
+            <span className="flex items-center gap-1 text-sm text-[var(--color-success)] font-bold">
               <Plus size={14} />
               {featuresCreated} added
             </span>
@@ -200,7 +234,7 @@ export function ExpandProjectChat({
 
         <div className="flex items-center gap-2">
           {isComplete && (
-            <span className="flex items-center gap-1 text-sm text-[var(--color-neo-done)] font-bold">
+            <span className="flex items-center gap-1 text-sm text-[var(--color-success)] font-bold">
               <CheckCircle2 size={16} />
               Complete
             </span>
@@ -208,7 +242,7 @@ export function ExpandProjectChat({
 
           <button
             onClick={onCancel}
-            className="neo-btn neo-btn-ghost p-2"
+            className="btn btn-ghost btn-icon p-2"
             title="Close"
           >
             <X size={20} />
@@ -218,7 +252,7 @@ export function ExpandProjectChat({
 
       {/* Error banner */}
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-[var(--color-neo-danger)] text-white border-b-3 border-[var(--color-neo-border)]">
+        <div className="flex items-center gap-2 p-3 bg-[var(--color-danger)] text-white border-b-2 border-[var(--color-border)]">
           <AlertCircle size={16} />
           <span className="flex-1 text-sm">{error}</span>
           <button
@@ -234,17 +268,17 @@ export function ExpandProjectChat({
       <div className="flex-1 overflow-y-auto py-4">
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="neo-card p-6 max-w-md">
-              <h3 className="font-display font-bold text-lg mb-2">
+            <div className="card p-6 max-w-md">
+              <h3 className="font-display font-bold text-lg mb-2 text-[var(--color-text-primary)]">
                 Starting Project Expansion
               </h3>
-              <p className="text-sm text-[var(--color-neo-text-secondary)]">
+              <p className="text-sm text-[var(--color-text-secondary)]">
                 Connecting to Claude to help you add new features to your project...
               </p>
               {connectionStatus === 'error' && (
                 <button
                   onClick={start}
-                  className="neo-btn neo-btn-primary mt-4 text-sm"
+                  className="btn btn-primary mt-4 text-sm"
                 >
                   <RotateCcw size={14} />
                   Retry Connection
@@ -268,7 +302,7 @@ export function ExpandProjectChat({
       {/* Input area */}
       {!isComplete && (
         <div
-          className="p-4 border-t-3 border-[var(--color-neo-border)] bg-white"
+          className="p-4 border-t-2 border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
@@ -278,21 +312,21 @@ export function ExpandProjectChat({
               {pendingAttachments.map((attachment) => (
                 <div
                   key={attachment.id}
-                  className="relative group border-2 border-[var(--color-neo-border)] p-1 bg-white shadow-[2px_2px_0px_rgba(0,0,0,1)]"
+                  className="relative group border-2 border-[var(--color-border)] p-1 bg-[var(--color-bg-tertiary)] rounded-lg"
                 >
                   <img
                     src={attachment.previewUrl}
                     alt={attachment.filename}
-                    className="w-16 h-16 object-cover"
+                    className="w-16 h-16 object-cover rounded"
                   />
                   <button
                     onClick={() => handleRemoveAttachment(attachment.id)}
-                    className="absolute -top-2 -right-2 bg-[var(--color-neo-danger)] text-white rounded-full p-0.5 border-2 border-[var(--color-neo-border)] hover:scale-110 transition-transform"
+                    className="absolute -top-2 -right-2 bg-[var(--color-danger)] text-white rounded-full p-0.5 border-2 border-[var(--color-border)] hover:scale-110 transition-transform"
                     title="Remove attachment"
                   >
                     <X size={12} />
                   </button>
-                  <span className="text-xs truncate block max-w-16 mt-1 text-center">
+                  <span className="text-xs truncate block max-w-16 mt-1 text-center text-[var(--color-text-secondary)]">
                     {attachment.filename.length > 10
                       ? `${attachment.filename.substring(0, 7)}...`
                       : attachment.filename}
@@ -317,7 +351,7 @@ export function ExpandProjectChat({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={connectionStatus !== 'connected'}
-              className="neo-btn neo-btn-ghost p-3"
+              className="btn btn-ghost btn-icon p-3"
               title="Attach image (JPEG, PNG - max 5MB)"
             >
               <Paperclip size={18} />
@@ -329,12 +363,13 @@ export function ExpandProjectChat({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={
                 pendingAttachments.length > 0
                   ? 'Add a message with your image(s)...'
                   : 'Describe the features you want to add...'
               }
-              className="neo-input flex-1"
+              className="input flex-1"
               disabled={isLoading || connectionStatus !== 'connected'}
             />
             <button
@@ -344,23 +379,36 @@ export function ExpandProjectChat({
                 isLoading ||
                 connectionStatus !== 'connected'
               }
-              className="neo-btn neo-btn-primary px-6"
+              className="btn btn-primary px-6"
             >
               <Send size={18} />
             </button>
           </div>
 
-          {/* Help text */}
-          <p className="text-xs text-[var(--color-neo-text-secondary)] mt-2">
-            Press Enter to send. Drag & drop or click <Paperclip size={12} className="inline" /> to attach images.
-          </p>
+          {/* Help text and character count */}
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-[var(--color-text-tertiary)]">
+              Press Enter to send. Drag & drop or click <Paperclip size={12} className="inline" /> to attach images.
+            </p>
+            {input.length > WARN_MESSAGE_LENGTH && (
+              <span
+                className={`text-xs font-mono ${
+                  input.length > MAX_MESSAGE_LENGTH
+                    ? 'text-[var(--color-danger)]'
+                    : 'text-[var(--color-warning)]'
+                }`}
+              >
+                {input.length.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
       {/* Completion footer */}
       {isComplete && (
-        <div className="p-4 border-t-3 border-[var(--color-neo-border)] bg-[var(--color-neo-done)]">
-          <div className="flex items-center justify-between">
+        <div className="p-4 border-t-2 border-[var(--color-border)] bg-[var(--color-success)]">
+          <div className="flex items-center justify-between text-white">
             <div className="flex items-center gap-2">
               <CheckCircle2 size={20} />
               <span className="font-bold">
@@ -369,7 +417,7 @@ export function ExpandProjectChat({
             </div>
             <button
               onClick={() => onComplete(featuresCreated)}
-              className="neo-btn bg-white"
+              className="btn bg-white/20 hover:bg-white/30 text-white"
             >
               Close
             </button>

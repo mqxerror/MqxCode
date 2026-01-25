@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react'
 import { KanbanColumn } from './KanbanColumn'
 import { motion } from 'framer-motion'
 import type { Feature, FeatureListResponse } from '../lib/types'
@@ -10,7 +11,28 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandProject }: KanbanBoardProps) {
+  const [searchQuery, setSearchQuery] = useState('')
+
   const hasFeatures = features && (features.pending.length + features.in_progress.length + features.done.length) > 0
+
+  // Filter features based on search query
+  const filteredFeatures = useMemo(() => {
+    if (!features) return undefined
+    if (!searchQuery.trim()) return features
+
+    const query = searchQuery.toLowerCase().trim()
+
+    const filterFn = (feature: Feature) =>
+      feature.name.toLowerCase().includes(query) ||
+      feature.description.toLowerCase().includes(query) ||
+      feature.category.toLowerCase().includes(query)
+
+    return {
+      pending: features.pending.filter(filterFn),
+      in_progress: features.in_progress.filter(filterFn),
+      done: features.done.filter(filterFn),
+    }
+  }, [features, searchQuery])
 
   if (!features) {
     return (
@@ -41,25 +63,28 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <KanbanColumn
         title="Pending"
-        count={features.pending.length}
-        features={features.pending}
+        count={filteredFeatures?.pending.length ?? 0}
+        features={filteredFeatures?.pending ?? []}
         color="pending"
         onFeatureClick={onFeatureClick}
         onAddFeature={onAddFeature}
         onExpandProject={onExpandProject}
         showExpandButton={hasFeatures}
+        showSearch={hasFeatures}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
       <KanbanColumn
         title="In Progress"
-        count={features.in_progress.length}
-        features={features.in_progress}
+        count={filteredFeatures?.in_progress.length ?? 0}
+        features={filteredFeatures?.in_progress ?? []}
         color="progress"
         onFeatureClick={onFeatureClick}
       />
       <KanbanColumn
         title="Done"
-        count={features.done.length}
-        features={features.done}
+        count={filteredFeatures?.done.length ?? 0}
+        features={filteredFeatures?.done ?? []}
         color="done"
         onFeatureClick={onFeatureClick}
       />

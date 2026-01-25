@@ -82,7 +82,7 @@ def feature_to_response(f) -> FeatureResponse:
         description=f.description,
         steps=f.steps if isinstance(f.steps, list) else [],
         passes=f.passes,
-        in_progress=f.in_progress,
+        in_progress=f.in_progress if f.in_progress is not None else False,
     )
 
 
@@ -345,6 +345,57 @@ async def skip_feature(project_name: str, feature_id: int):
     except Exception:
         logger.exception("Failed to skip feature")
         raise HTTPException(status_code=500, detail="Failed to skip feature")
+
+
+@router.post("/reset-in-progress")
+async def reset_in_progress_features(project_name: str):
+    """
+    Reset all in-progress features back to pending queue.
+
+    This is useful when:
+    - The agent crashed mid-feature
+    - You want to restart processing
+    - Features got stuck in in_progress state
+    """
+    project_name = validate_project_name(project_name)
+    project_dir = _get_project_path(project_name)
+
+    if not project_dir:
+        raise HTTPException(status_code=404, detail=f"Project '{project_name}' not found in registry")
+
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    db_file = project_dir / "features.db"
+    if not db_file.exists():
+        return {"reset_count": 0, "message": "No features database found"}
+
+    _, Feature = _get_db_classes()
+
+    try:
+        with get_db_session(project_dir) as session:
+            # Find all in-progress features
+            in_progress_features = session.query(Feature).filter(
+                Feature.in_progress == True,
+                Feature.passes == False
+            ).all()
+
+            reset_count = 0
+            for feature in in_progress_features:
+                feature.in_progress = False
+                reset_count += 1
+
+            session.commit()
+
+            return {
+                "reset_count": reset_count,
+                "message": f"Reset {reset_count} in-progress feature(s) back to pending queue"
+            }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to reset in-progress features")
+        raise HTTPException(status_code=500, detail="Failed to reset in-progress features")
 
 
 @router.post("/bulk", response_model=FeatureBulkCreateResponse)

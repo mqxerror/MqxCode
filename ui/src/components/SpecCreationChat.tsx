@@ -17,6 +17,10 @@ import type { ImageAttachment } from '../lib/types'
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
 
+// Message length validation
+const MAX_MESSAGE_LENGTH = 100000 // ~100K chars
+const WARN_MESSAGE_LENGTH = 50000 // Warn above this
+
 type InitializerStatus = 'idle' | 'starting' | 'error'
 
 interface SpecCreationChatProps {
@@ -95,6 +99,14 @@ export function SpecCreationChat({
       return
     }
 
+    // Validate message length
+    if (trimmed.length > MAX_MESSAGE_LENGTH) {
+      setError(
+        `Message is too long (${trimmed.length.toLocaleString()} chars). Maximum is ${MAX_MESSAGE_LENGTH.toLocaleString()} characters.`
+      )
+      return
+    }
+
     sendMessage(trimmed, pendingAttachments.length > 0 ? pendingAttachments : undefined)
     setInput('')
     setPendingAttachments([]) // Clear attachments after sending
@@ -169,6 +181,28 @@ export function SpecCreationChat({
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
   }, [])
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault()
+          const file = items[i].getAsFile()
+          if (file) {
+            // Create a FileList-like object
+            const dt = new DataTransfer()
+            dt.items.add(file)
+            handleFileSelect(dt.files)
+          }
+          break
+        }
+      }
+    },
+    [handleFileSelect]
+  )
 
   // Connection status indicator
   const ConnectionIndicator = () => {
@@ -369,6 +403,7 @@ export function SpecCreationChat({
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`
               }}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={
                 currentQuestions
                   ? 'Or type a custom response...'
@@ -393,10 +428,23 @@ export function SpecCreationChat({
             </button>
           </div>
 
-          {/* Help text */}
-          <p className="text-xs text-[var(--color-neo-text-secondary)] mt-2">
-            Press Enter to send, Shift+Enter for new line. Drag & drop or click <Paperclip size={12} className="inline" /> to attach images (JPEG/PNG, max 5MB).
-          </p>
+          {/* Help text and character count */}
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-[var(--color-neo-text-secondary)]">
+              Press Enter to send, Shift+Enter for new line. Drag & drop or click <Paperclip size={12} className="inline" /> to attach images.
+            </p>
+            {input.length > WARN_MESSAGE_LENGTH && (
+              <span
+                className={`text-xs font-mono ${
+                  input.length > MAX_MESSAGE_LENGTH
+                    ? 'text-[var(--color-neo-danger)]'
+                    : 'text-[var(--color-neo-pending)]'
+                }`}
+              >
+                {input.length.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
+              </span>
+            )}
+          </div>
         </div>
       )}
 

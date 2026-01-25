@@ -4,15 +4,38 @@
  * Collapsible panel at the bottom of the screen showing real-time
  * agent output (tool calls, results, steps). Similar to browser DevTools.
  * Features a resizable height via drag handle and tabs for different log sources.
+ *
+ * Enhanced with:
+ * - AgentContextBar showing current feature, task, and step progress
+ * - EnhancedLogEntry with semantic parsing, icons, and color-coding
+ * - Search and filter functionality for logs
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { ChevronUp, ChevronDown, Trash2, Terminal as TerminalIcon, GripHorizontal, Cpu, Server } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import {
+  ChevronUp,
+  ChevronDown,
+  Trash2,
+  Terminal as TerminalIcon,
+  GripHorizontal,
+  Cpu,
+  Server,
+  Search,
+  X,
+  Filter,
+  FileText,
+  Settings2,
+  MonitorCog,
+} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Terminal } from './Terminal'
 import { TerminalTabs } from './TerminalTabs'
+import { AgentContextBar } from './agent-console/AgentContextBar'
+import { EnhancedLogList, LogTypeFilters } from './agent-console/EnhancedLogEntry'
+import { SpecViewer } from './spec-viewer'
+import { CommandCenter, ServerTasks } from './command-center'
 import { listTerminals, createTerminal, renameTerminal, deleteTerminal } from '@/lib/api'
-import type { TerminalInfo } from '@/lib/types'
+import type { TerminalInfo, AgentStatus, AgentContext, ParsedLogEntry, LogEntryType } from '@/lib/types'
 import { cn } from './aceternity/cn'
 
 const MIN_HEIGHT = 150
@@ -21,26 +44,50 @@ const DEFAULT_HEIGHT = 288
 const STORAGE_KEY = 'debug-panel-height'
 const TAB_STORAGE_KEY = 'debug-panel-tab'
 
-type TabType = 'agent' | 'devserver' | 'terminal'
+type TabType = 'agent' | 'devserver' | 'terminal' | 'spec' | 'config' | 'tasks'
 
 interface DebugLogViewerProps {
+  /** Raw log entries */
   logs: Array<{ line: string; timestamp: string }>
+  /** Parsed log entries with semantic information */
+  parsedLogs?: ParsedLogEntry[]
+  /** Raw dev server log entries */
   devLogs: Array<{ line: string; timestamp: string }>
+  /** Parsed dev server log entries */
+  parsedDevLogs?: ParsedLogEntry[]
+  /** Agent context extracted from logs */
+  agentContext?: AgentContext
+  /** Current agent status */
+  agentStatus?: AgentStatus
+  /** Whether the panel is open */
   isOpen: boolean
+  /** Toggle panel open/closed */
   onToggle: () => void
+  /** Clear agent logs */
   onClear: () => void
+  /** Clear dev server logs */
   onClearDevLogs: () => void
+  /** Callback when panel height changes */
   onHeightChange?: (height: number) => void
+  /** Current project name */
   projectName: string
+  /** Controlled active tab */
   activeTab?: TabType
+  /** Callback when active tab changes */
   onTabChange?: (tab: TabType) => void
+  /** Sidebar width offset for positioning */
+  sidebarWidth?: number
 }
 
 type LogLevel = 'error' | 'warn' | 'debug' | 'info'
 
 export function DebugLogViewer({
   logs,
+  parsedLogs,
   devLogs,
+  parsedDevLogs,
+  agentContext,
+  agentStatus = 'stopped',
   isOpen,
   onToggle,
   onClear,
@@ -49,6 +96,7 @@ export function DebugLogViewer({
   projectName,
   activeTab: controlledActiveTab,
   onTabChange,
+  sidebarWidth = 0,
 }: DebugLogViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const devScrollRef = useRef<HTMLDivElement>(null)
@@ -64,6 +112,12 @@ export function DebugLogViewer({
     return (saved as TabType) || 'agent'
   })
 
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [selectedFilterTypes, setSelectedFilterTypes] = useState<LogEntryType[]>([])
+
   // Terminal management state
   const [terminals, setTerminals] = useState<TerminalInfo[]>([])
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
@@ -76,6 +130,30 @@ export function DebugLogViewer({
     localStorage.setItem(TAB_STORAGE_KEY, tab)
     onTabChange?.(tab)
   }
+
+  // Default agent context when not provided
+  const defaultAgentContext: AgentContext = useMemo(() => ({
+    currentFeature: { id: null, name: null },
+    currentTask: null,
+    stepProgress: null,
+    workingFile: null,
+    lastToolCall: null,
+    lastActivityTime: null,
+  }), [])
+
+  const effectiveAgentContext = agentContext ?? defaultAgentContext
+
+  // Toggle filter type selection
+  const handleFilterTypeToggle = useCallback((type: LogEntryType) => {
+    setSelectedFilterTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    )
+  }, [])
+
+  // Clear all filters
+  const handleClearFilters = useCallback(() => {
+    setSelectedFilterTypes([])
+  }, [])
 
   // Fetch terminals for the project
   const fetchTerminals = useCallback(async () => {
@@ -221,6 +299,7 @@ export function DebugLogViewer({
     return false
   }
 
+  // Legacy log rendering for fallback when parsedLogs not provided
   const getLogLevel = (line: string): LogLevel => {
     const lowerLine = line.toLowerCase()
     if (lowerLine.includes('error') || lowerLine.includes('exception') || lowerLine.includes('traceback')) return 'error'
@@ -252,15 +331,25 @@ export function DebugLogViewer({
     { id: 'agent', label: 'Agent', icon: Cpu, count: logs.length },
     { id: 'devserver', label: 'Dev Server', icon: Server, count: devLogs.length },
     { id: 'terminal', label: 'Terminal', icon: TerminalIcon, shortcut: 'T' },
+    { id: 'spec', label: 'Spec', icon: FileText },
+    { id: 'config', label: 'Config', icon: Settings2 },
+    { id: 'tasks', label: 'Tasks', icon: MonitorCog },
   ]
+
+  // Determine if we should use enhanced log display
+  const useEnhancedLogs = parsedLogs && parsedLogs.length > 0
+  const useEnhancedDevLogs = parsedDevLogs && parsedDevLogs.length > 0
 
   return (
     <motion.div
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-40",
-        !isResizing && "transition-all duration-200"
+        "fixed bottom-0 right-0 z-40",
+        !isResizing && "transition-all duration-300"
       )}
-      style={{ height: isOpen ? panelHeight : 44 }}
+      style={{
+        height: isOpen ? panelHeight : 44,
+        left: sidebarWidth,
+      }}
       initial={false}
     >
       {/* Resize handle */}
@@ -333,14 +422,51 @@ export function DebugLogViewer({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Search and filter controls for agent/devserver tabs */}
           {isOpen && activeTab !== 'terminal' && (
-            <button
-              onClick={(e) => { e.stopPropagation(); handleClear() }}
-              className="p-2 hover:bg-[var(--color-bg-tertiary)] rounded-lg transition-colors"
-              title="Clear logs"
-            >
-              <Trash2 size={14} className="text-[var(--color-text-tertiary)]" />
-            </button>
+            <>
+              {/* Search toggle */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowSearch(!showSearch); setShowFilters(false) }}
+                className={cn(
+                  "p-2 rounded-lg transition-colors",
+                  showSearch
+                    ? "bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary)]"
+                    : "hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)]"
+                )}
+                title="Search logs"
+              >
+                <Search size={14} />
+              </button>
+
+              {/* Filter toggle */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowFilters(!showFilters); setShowSearch(false) }}
+                className={cn(
+                  "p-2 rounded-lg transition-colors",
+                  showFilters || selectedFilterTypes.length > 0
+                    ? "bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary)]"
+                    : "hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)]"
+                )}
+                title="Filter logs"
+              >
+                <Filter size={14} />
+                {selectedFilterTypes.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 text-[10px] bg-[var(--color-accent-primary)] text-white rounded-full flex items-center justify-center">
+                    {selectedFilterTypes.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Clear logs */}
+              <button
+                onClick={(e) => { e.stopPropagation(); handleClear() }}
+                className="p-2 hover:bg-[var(--color-bg-tertiary)] rounded-lg transition-colors"
+                title="Clear logs"
+              >
+                <Trash2 size={14} className="text-[var(--color-text-tertiary)]" />
+              </button>
+            </>
           )}
           <button onClick={onToggle} className="p-1">
             {isOpen ? <ChevronDown size={16} className="text-[var(--color-text-tertiary)]" /> : <ChevronUp size={16} className="text-[var(--color-text-tertiary)]" />}
@@ -355,32 +481,118 @@ export function DebugLogViewer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="h-[calc(100%-2.75rem)] bg-[var(--color-bg-primary)]"
+            className="h-[calc(100%-2.75rem)] bg-[var(--color-bg-primary)] flex flex-col"
           >
+            {/* Search bar (shown when search is active) */}
+            <AnimatePresence>
+              {showSearch && activeTab !== 'terminal' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
+                >
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <Search size={14} className="text-[var(--color-text-tertiary)]" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search logs..."
+                      className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none"
+                      autoFocus
+                    />
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="p-1 hover:bg-[var(--color-bg-tertiary)] rounded"
+                      >
+                        <X size={12} className="text-[var(--color-text-tertiary)]" />
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Filter bar (shown when filters are active) */}
+            <AnimatePresence>
+              {showFilters && activeTab !== 'terminal' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
+                >
+                  <div className="px-3 py-2">
+                    <LogTypeFilters
+                      selectedTypes={selectedFilterTypes}
+                      onTypeToggle={handleFilterTypeToggle}
+                      onClearFilters={handleClearFilters}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Agent Logs Tab */}
             {activeTab === 'agent' && (
-              <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto p-3 font-mono text-sm scrollbar-thin">
-                {logs.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-[var(--color-text-tertiary)]">
-                    No logs yet. Start the agent to see output.
-                  </div>
-                ) : (
-                  <div className="space-y-0.5">
-                    {logs.map((log, index) => (
-                      <div key={`${log.timestamp}-${index}`} className="flex gap-3 hover:bg-[var(--color-bg-secondary)] px-2 py-1 rounded-lg">
-                        <span className="text-[var(--color-text-tertiary)] select-none shrink-0 text-xs">{formatTimestamp(log.timestamp)}</span>
-                        <span className={cn(getLogColor(getLogLevel(log.line)), "whitespace-pre-wrap break-all text-xs")}>{log.line}</span>
-                      </div>
-                    ))}
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Agent Context Bar */}
+                {agentContext && (
+                  <div className="px-3 pt-2">
+                    <AgentContextBar
+                      context={effectiveAgentContext}
+                      agentStatus={agentStatus}
+                    />
                   </div>
                 )}
+
+                {/* Log entries */}
+                <div
+                  ref={scrollRef}
+                  onScroll={handleScroll}
+                  className="flex-1 overflow-y-auto p-3 font-mono text-sm scrollbar-thin"
+                >
+                  {useEnhancedLogs ? (
+                    <EnhancedLogList
+                      entries={parsedLogs}
+                      isActive={agentStatus === 'running'}
+                      filterTypes={selectedFilterTypes.length > 0 ? selectedFilterTypes : undefined}
+                      searchTerm={searchTerm || undefined}
+                    />
+                  ) : logs.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-[var(--color-text-tertiary)]">
+                      No logs yet. Start the agent to see output.
+                    </div>
+                  ) : (
+                    <div className="space-y-0.5">
+                      {logs.map((log, index) => (
+                        <div key={`${log.timestamp}-${index}`} className="flex gap-3 hover:bg-[var(--color-bg-secondary)] px-2 py-1 rounded-lg">
+                          <span className="text-[var(--color-text-tertiary)] select-none shrink-0 text-xs">{formatTimestamp(log.timestamp)}</span>
+                          <span className={cn(getLogColor(getLogLevel(log.line)), "whitespace-pre-wrap break-all text-xs")}>{log.line}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {/* Dev Server Logs Tab */}
             {activeTab === 'devserver' && (
-              <div ref={devScrollRef} onScroll={handleDevScroll} className="h-full overflow-y-auto p-3 font-mono text-sm scrollbar-thin">
-                {devLogs.length === 0 ? (
+              <div
+                ref={devScrollRef}
+                onScroll={handleDevScroll}
+                className="flex-1 overflow-y-auto p-3 font-mono text-sm scrollbar-thin"
+              >
+                {useEnhancedDevLogs ? (
+                  <EnhancedLogList
+                    entries={parsedDevLogs}
+                    filterTypes={selectedFilterTypes.length > 0 ? selectedFilterTypes : undefined}
+                    searchTerm={searchTerm || undefined}
+                  />
+                ) : devLogs.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-[var(--color-text-tertiary)]">No dev server logs yet.</div>
                 ) : (
                   <div className="space-y-0.5">
@@ -397,7 +609,7 @@ export function DebugLogViewer({
 
             {/* Terminal Tab */}
             {activeTab === 'terminal' && (
-              <div className="h-full flex flex-col">
+              <div className="flex-1 flex flex-col min-h-0">
                 {terminals.length > 0 && (
                   <TerminalTabs
                     terminals={terminals}
@@ -408,7 +620,7 @@ export function DebugLogViewer({
                     onClose={handleCloseTerminal}
                   />
                 )}
-                <div className="flex-1 min-h-0 relative">
+                <div className="flex-1 min-h-0 relative rounded-lg overflow-hidden shadow-[0_0_20px_rgba(99,102,241,0.15)]">
                   {isLoadingTerminals ? (
                     <div className="h-full flex items-center justify-center text-[var(--color-text-tertiary)] font-mono text-sm">Loading terminals...</div>
                   ) : terminals.length === 0 ? (
@@ -432,6 +644,27 @@ export function DebugLogViewer({
                     })
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Spec Viewer Tab */}
+            {activeTab === 'spec' && (
+              <div className="flex-1 overflow-hidden">
+                <SpecViewer projectName={projectName} className="h-full" />
+              </div>
+            )}
+
+            {/* Config Tab */}
+            {activeTab === 'config' && (
+              <div className="flex-1 overflow-y-auto scrollbar-thin">
+                <CommandCenter />
+              </div>
+            )}
+
+            {/* Tasks Tab */}
+            {activeTab === 'tasks' && (
+              <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
+                <ServerTasks projectName={projectName} />
               </div>
             )}
           </motion.div>

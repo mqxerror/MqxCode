@@ -3,7 +3,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { ChatMessage, AssistantChatServerMessage } from "../lib/types";
+import type { ChatMessage, AssistantChatServerMessage, ImageAttachment } from "../lib/types";
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
@@ -18,7 +18,7 @@ interface UseAssistantChatReturn {
   connectionStatus: ConnectionStatus;
   conversationId: number | null;
   start: (conversationId?: number | null) => void;
-  sendMessage: (content: string) => void;
+  sendMessage: (content: string, attachments?: ImageAttachment[]) => void;
   disconnect: () => void;
   clearMessages: () => void;
 }
@@ -291,32 +291,51 @@ export function useAssistantChat({
   );
 
   const sendMessage = useCallback(
-    (content: string) => {
+    (content: string, attachments?: ImageAttachment[]) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         onError?.("Not connected");
         return;
       }
 
-      // Add user message to chat
+      // Add user message to chat (with attachments for display)
       setMessages((prev) => [
         ...prev,
         {
           id: generateId(),
           role: "user",
           content,
+          attachments,
           timestamp: new Date(),
         },
       ]);
 
       setIsLoading(true);
 
+      // Build message payload
+      const payload: {
+        type: string;
+        content: string;
+        attachments?: Array<{
+          filename: string;
+          mimeType: string;
+          base64Data: string;
+        }>;
+      } = {
+        type: "message",
+        content,
+      };
+
+      // Add attachments if present (send base64 data, not preview URL)
+      if (attachments && attachments.length > 0) {
+        payload.attachments = attachments.map((a) => ({
+          filename: a.filename,
+          mimeType: a.mimeType,
+          base64Data: a.base64Data,
+        }));
+      }
+
       // Send to server
-      wsRef.current.send(
-        JSON.stringify({
-          type: "message",
-          content,
-        }),
-      );
+      wsRef.current.send(JSON.stringify(payload));
     },
     [onError],
   );

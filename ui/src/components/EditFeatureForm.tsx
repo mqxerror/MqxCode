@@ -1,5 +1,6 @@
 import { useState, useId } from 'react'
 import { X, Save, Plus, Trash2, Loader2, AlertCircle } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { useUpdateFeature } from '../hooks/useProjects'
 import type { Feature } from '../lib/types'
 
@@ -83,21 +84,31 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
     JSON.stringify(currentSteps) !== JSON.stringify(feature.steps)
 
   return (
-    <div className="neo-modal-backdrop" onClick={onClose}>
-      <div
-        className="neo-modal w-full max-w-2xl"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b-3 border-[var(--color-neo-border)]">
-          <h2 className="font-display text-2xl font-bold">
+        <div className="flex items-center justify-between p-6 border-b border-[var(--color-border)] bg-gradient-to-r from-[var(--color-bg-secondary)] to-[var(--color-bg-tertiary)]">
+          <h2 className="font-display text-xl font-bold text-[var(--color-text-primary)]">
             Edit Feature
           </h2>
           <button
             onClick={onClose}
-            className="neo-btn neo-btn-ghost p-2"
+            className="p-2 rounded-lg hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] transition-colors"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
@@ -105,13 +116,13 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Error Message */}
           {error && (
-            <div className="flex items-center gap-3 p-4 bg-[var(--color-neo-danger)] text-white border-3 border-[var(--color-neo-border)]">
+            <div className="flex items-center gap-3 p-4 bg-[var(--color-danger)]/10 text-[var(--color-danger)] rounded-xl border border-[var(--color-danger)]/30">
               <AlertCircle size={20} />
-              <span>{error}</span>
+              <span className="flex-1 text-sm">{error}</span>
               <button
                 type="button"
                 onClick={() => setError(null)}
-                className="ml-auto"
+                className="hover:opacity-70"
               >
                 <X size={16} />
               </button>
@@ -121,7 +132,7 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
           {/* Category & Priority Row */}
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block font-display font-bold mb-2 uppercase text-sm">
+              <label className="block text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">
                 Category
               </label>
               <input
@@ -129,12 +140,12 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="e.g., Authentication, UI, API"
-                className="neo-input"
+                className="input"
                 required
               />
             </div>
             <div className="w-32">
-              <label className="block font-display font-bold mb-2 uppercase text-sm">
+              <label className="block text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">
                 Priority
               </label>
               <input
@@ -142,7 +153,7 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 min="1"
-                className="neo-input"
+                className="input"
                 required
               />
             </div>
@@ -150,7 +161,7 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
 
           {/* Name */}
           <div>
-            <label className="block font-display font-bold mb-2 uppercase text-sm">
+            <label className="block text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">
               Feature Name
             </label>
             <input
@@ -158,34 +169,34 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., User login form"
-              className="neo-input"
+              className="input"
               required
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block font-display font-bold mb-2 uppercase text-sm">
+            <label className="block text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">
               Description
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe what this feature should do..."
-              className="neo-input min-h-[100px] resize-y"
+              className="input min-h-[100px] resize-y"
               required
             />
           </div>
 
           {/* Steps */}
           <div>
-            <label className="block font-display font-bold mb-2 uppercase text-sm">
+            <label className="block text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2">
               Test Steps
             </label>
             <div className="space-y-2">
               {steps.map((step, index) => (
                 <div key={step.id} className="flex gap-2">
-                  <span className="neo-input w-12 text-center flex-shrink-0 flex items-center justify-center">
+                  <span className="input w-12 text-center flex-shrink-0 flex items-center justify-center text-[var(--color-text-tertiary)]">
                     {index + 1}
                   </span>
                   <input
@@ -193,13 +204,13 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
                     value={step.value}
                     onChange={(e) => handleStepChange(step.id, e.target.value)}
                     placeholder="Describe this step..."
-                    className="neo-input flex-1"
+                    className="input flex-1"
                   />
                   {steps.length > 1 && (
                     <button
                       type="button"
                       onClick={() => handleRemoveStep(step.id)}
-                      className="neo-btn neo-btn-ghost p-2"
+                      className="btn btn-ghost p-2"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -210,7 +221,7 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
             <button
               type="button"
               onClick={handleAddStep}
-              className="neo-btn neo-btn-ghost mt-2 text-sm"
+              className="btn btn-ghost mt-2 text-sm"
             >
               <Plus size={16} />
               Add Step
@@ -218,11 +229,11 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t-3 border-[var(--color-neo-border)]">
+          <div className="flex gap-3 pt-4 border-t border-[var(--color-border)]">
             <button
               type="submit"
               disabled={!isValid || !hasChanges || updateFeature.isPending}
-              className="neo-btn neo-btn-success flex-1"
+              className="btn btn-success flex-1"
             >
               {updateFeature.isPending ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -236,13 +247,13 @@ export function EditFeatureForm({ feature, projectName, onClose, onSaved }: Edit
             <button
               type="button"
               onClick={onClose}
-              className="neo-btn neo-btn-ghost"
+              className="btn btn-secondary"
             >
               Cancel
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

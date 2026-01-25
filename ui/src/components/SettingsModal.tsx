@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { X, Loader2, AlertCircle, Zap } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useSettings, useUpdateSettings, useAvailableModels } from '../hooks/useProjects'
 
 interface SettingsModalProps {
@@ -75,20 +74,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const isSaving = updateSettings.isPending
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
       onClick={onClose}
       role="presentation"
     >
-      <motion.div
+      <div
         ref={modalRef}
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="w-full max-w-md bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -105,16 +97,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <Loader2 className="animate-spin text-[var(--color-accent-primary)]" size={16} />
             )}
           </div>
-          <motion.button
+          <button
             ref={closeButtonRef}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] transition-colors"
             aria-label="Close settings"
           >
             <X size={20} />
-          </motion.button>
+          </button>
         </div>
 
         <div className="p-6">
@@ -128,11 +118,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
           {/* Error State */}
           {isError && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-[var(--color-error)]/10 border border-[var(--color-error)]/30 rounded-xl mb-4"
-            >
+            <div className="p-4 bg-[var(--color-error)]/10 border border-[var(--color-error)]/30 rounded-xl mb-4">
               <div className="flex items-center gap-2 text-[var(--color-error)]">
                 <AlertCircle size={18} />
                 <span>Failed to load settings</span>
@@ -143,7 +129,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               >
                 Retry
               </button>
-            </motion.div>
+            </div>
           )}
 
           {/* Settings Content */}
@@ -168,8 +154,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       </p>
                     </div>
                   </div>
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
+                  <button
                     onClick={handleYoloToggle}
                     disabled={isSaving}
                     className={`relative w-14 h-8 rounded-full transition-colors ${
@@ -181,12 +166,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     aria-checked={settings.yolo_mode}
                     aria-labelledby="yolo-label"
                   >
-                    <motion.span
-                      animate={{ x: settings.yolo_mode ? 24 : 2 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-md"
+                    <span
+                      className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                        settings.yolo_mode ? 'translate-x-6' : 'translate-x-1'
+                      }`}
                     />
-                  </motion.button>
+                  </button>
                 </div>
               </div>
 
@@ -204,10 +189,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   aria-labelledby="model-label"
                 >
                   {models.map((model, index) => (
-                    <motion.button
+                    <button
                       key={model.id}
-                      whileHover={{ backgroundColor: settings.model === model.id ? undefined : 'var(--color-bg-tertiary)' }}
-                      whileTap={{ scale: 0.98 }}
                       onClick={() => handleModelChange(model.id)}
                       disabled={isSaving}
                       role="radio"
@@ -215,32 +198,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       className={`flex-1 py-3 px-4 font-medium text-sm transition-colors ${
                         settings.model === model.id
                           ? 'bg-[var(--color-accent-primary)] text-white'
-                          : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                          : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]'
                       } ${index !== models.length - 1 ? 'border-r border-[var(--color-border)]' : ''} ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {model.name}
-                    </motion.button>
+                    </button>
                   ))}
                 </div>
               </div>
 
               {/* Update Error */}
-              <AnimatePresence>
-                {updateSettings.isError && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="p-3 bg-[var(--color-error)]/10 border border-[var(--color-error)]/30 rounded-xl text-[var(--color-error)] text-sm"
-                  >
-                    Failed to save settings. Please try again.
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {updateSettings.isError && (
+                <div className="p-3 bg-[var(--color-error)]/10 border border-[var(--color-error)]/30 rounded-xl text-[var(--color-error)] text-sm">
+                  Failed to save settings. Please try again.
+                </div>
+              )}
             </div>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
 }

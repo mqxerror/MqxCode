@@ -2,8 +2,9 @@
  * WebSocket Hook for Real-time Updates
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import type { WSMessage, AgentStatus, DevServerStatus } from '../lib/types'
+import { extractAgentContext, parseLogs, type AgentContext, type ParsedLogEntry } from '../lib/logParser'
 
 interface WebSocketState {
   progress: {
@@ -196,9 +197,28 @@ export function useProjectWebSocket(projectName: string | null) {
     setState(prev => ({ ...prev, devLogs: [] }))
   }, [])
 
+  // Compute agent context from logs
+  // This extracts information about what the agent is currently working on
+  const agentContext = useMemo<AgentContext>(() => {
+    return extractAgentContext(state.logs)
+  }, [state.logs])
+
+  // Parse logs into structured entries for enhanced display
+  const parsedLogs = useMemo<ParsedLogEntry[]>(() => {
+    return parseLogs(state.logs)
+  }, [state.logs])
+
+  // Parse dev logs into structured entries
+  const parsedDevLogs = useMemo<ParsedLogEntry[]>(() => {
+    return parseLogs(state.devLogs)
+  }, [state.devLogs])
+
   return {
     ...state,
     clearLogs,
     clearDevLogs,
+    agentContext,
+    parsedLogs,
+    parsedDevLogs,
   }
 }

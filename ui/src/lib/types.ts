@@ -402,3 +402,78 @@ export interface SettingsUpdate {
   yolo_mode?: boolean
   model?: string
 }
+
+// ============================================================================
+// Config/Command Center Types
+// ============================================================================
+
+export interface ConfigFile {
+  name: string
+  path: string
+  description: string
+  category: string
+}
+
+export interface ClaudeConfig {
+  guidance: ConfigFile[]
+  commands: ConfigFile[]
+  skills: ConfigFile[]
+  agents: ConfigFile[]
+  templates: ConfigFile[]
+}
+
+export interface ConfigFileContent {
+  name: string
+  path: string
+  content: string
+  category: string
+}
+
+// ============================================================================
+// Server Tasks Types
+// ============================================================================
+
+/**
+ * Result of running a server task command.
+ * Contains the command output, exit code, and the command that was executed.
+ * Note: Backend uses snake_case (exit_code), frontend transforms to camelCase.
+ */
+export interface TaskResult {
+  output: string
+  exit_code: number
+  command: string
+  success: boolean
+}
+
+/**
+ * Health status of server components.
+ * Used to monitor the state of the agent, database, and UI build.
+ * Backend returns strings that may include error details, so we use broader types.
+ */
+export interface HealthStatus {
+  agent: string  // 'ok' | 'missing' | other status strings
+  database: string  // 'ok' | 'error: <message>'
+  ui: string  // 'ok' | 'not built'
+}
+
+/**
+ * Database statistics for feature tracking.
+ */
+export interface DbStats {
+  pending: number
+  in_progress: number
+  done: number
+  total: number
+  percentage: number
+}
+
+// ============================================================================
+// Log Parser Types (re-exported from logParser.ts for convenience)
+// ============================================================================
+
+export type {
+  LogEntryType,
+  ParsedLogEntry,
+  LogEntryMetadata,
+  AgentContext,
+} from './logParser'

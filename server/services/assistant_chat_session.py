@@ -20,6 +20,7 @@ from typing import AsyncGenerator, Optional
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from dotenv import load_dotenv
 
+from ..schemas import ImageAttachment
 from .assistant_database import (
     add_message,
     create_conversation,
@@ -29,6 +30,25 @@ from .assistant_database import (
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+async def _make_multimodal_message(content_blocks: list[dict]) -> AsyncGenerator[dict, None]:
+    """
+    Create an async generator that yields a properly formatted multimodal message.
+
+    The Claude Agent SDK's query() method accepts either:
+    - A string (simple text)
+    - An AsyncIterable[dict] (for custom message formats)
+
+    This function wraps content blocks in the expected message format.
+    """
+    yield {
+        "type": "user",
+        "message": {"role": "user", "content": content_blocks},
+        "parent_tool_use_id": None,
+        "session_id": "default",
+    }
+
 
 # Root directory of the project
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -292,12 +312,17 @@ class AssistantChatSession:
             logger.exception("Failed to send greeting")
             yield {"type": "error", "content": f"Failed to start conversation: {str(e)}"}
 
-    async def send_message(self, user_message: str) -> AsyncGenerator[dict, None]:
+    async def send_message(
+        self,
+        user_message: str,
+        attachments: list[ImageAttachment] | None = None
+    ) -> AsyncGenerator[dict, None]:
         """
         Send user message and stream Claude's response.
 
         Args:
             user_message: The user's message
+            attachments: Optional list of image attachments
 
         Yields:
             Message chunks:
@@ -314,28 +339,59 @@ class AssistantChatSession:
             yield {"type": "error", "content": "No conversation ID set."}
             return
 
-        # Store user message in database
-        add_message(self.project_dir, self.conversation_id, "user", user_message)
+        # Store user message in database (note if has attachments)
+        message_content = user_message
+        if attachments:
+            message_content += f" [+{len(attachments)} image(s)]"
+        add_message(self.project_dir, self.conversation_id, "user", message_content)
 
         try:
-            async for chunk in self._query_claude(user_message):
+            async for chunk in self._query_claude(user_message, attachments):
                 yield chunk
             yield {"type": "response_done"}
         except Exception as e:
             logger.exception("Error during Claude query")
             yield {"type": "error", "content": f"Error: {str(e)}"}
 
-    async def _query_claude(self, message: str) -> AsyncGenerator[dict, None]:
+    async def _query_claude(
+        self,
+        message: str,
+        attachments: list[ImageAttachment] | None = None
+    ) -> AsyncGenerator[dict, None]:
         """
         Internal method to query Claude and stream responses.
 
         Handles tool calls and text responses.
+        Supports multimodal content with image attachments.
         """
         if not self.client:
             return
 
-        # Send message to Claude
-        await self.client.query(message)
+        # Build the message content
+        if attachments and len(attachments) > 0:
+            # Multimodal message: build content blocks array
+            content_blocks = []
+
+            # Add text block if there's text
+            if message:
+                content_blocks.append({"type": "text", "text": message})
+
+            # Add image blocks
+            for att in attachments:
+                content_blocks.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": att.mimeType,
+                        "data": att.base64Data,
+                    },
+                })
+
+            # Send multimodal message
+            await self.client.query(_make_multimodal_message(content_blocks))
+        else:
+            # Simple text message
+            await self.client.query(message)
 
         full_response = ""
 

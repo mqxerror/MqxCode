@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+from ..schemas import ImageAttachment
 from ..services.assistant_chat_session import (
     AssistantChatSession,
     create_session,
@@ -34,6 +35,9 @@ router = APIRouter(prefix="/api/assistant", tags=["assistant-chat"])
 
 # Root directory
 ROOT_DIR = Path(__file__).parent.parent.parent
+
+# Message length limits
+MAX_MESSAGE_LENGTH = 100000  # ~100K chars - reasonable limit for user messages
 
 
 def _get_project_path(project_name: str) -> Optional[Path]:
@@ -299,15 +303,43 @@ async def assistant_chat_websocket(websocket: WebSocket, project_name: str):
                             continue
 
                     user_content = message.get("content", "").strip()
-                    if not user_content:
+
+                    # Validate message length
+                    if len(user_content) > MAX_MESSAGE_LENGTH:
+                        await websocket.send_json({
+                            "type": "error",
+                            "content": f"Message too long ({len(user_content):,} chars). Maximum is {MAX_MESSAGE_LENGTH:,} characters."
+                        })
+                        continue
+
+                    # Parse attachments if present
+                    attachments: list[ImageAttachment] = []
+                    raw_attachments = message.get("attachments", [])
+                    if raw_attachments:
+                        try:
+                            for raw_att in raw_attachments:
+                                attachments.append(ImageAttachment(**raw_att))
+                        except (ValidationError, Exception) as e:
+                            logger.warning(f"Invalid attachment data: {e}")
+                            await websocket.send_json({
+                                "type": "error",
+                                "content": f"Invalid attachment: {str(e)}"
+                            })
+                            continue
+
+                    # Allow empty content if attachments are present
+                    if not user_content and not attachments:
                         await websocket.send_json({
                             "type": "error",
                             "content": "Empty message"
                         })
                         continue
 
-                    # Stream Claude's response
-                    async for chunk in session.send_message(user_content):
+                    # Stream Claude's response (with attachments if present)
+                    async for chunk in session.send_message(
+                        user_content,
+                        attachments if attachments else None
+                    ):
                         await websocket.send_json(chunk)
 
                 else:
