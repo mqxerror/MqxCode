@@ -66,6 +66,18 @@ export interface Feature {
   steps: string[]
   passes: boolean
   in_progress: boolean
+  // Multi-agent fields
+  assigned_to_agent_id?: string | null
+  attempt_count?: number
+  blocked_reason?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface FeatureWithDependencies extends Feature {
+  depends_on: number[]
+  blocks: number[]
+  dependencies_satisfied: boolean
 }
 
 export interface FeatureListResponse {
@@ -92,6 +104,7 @@ export interface FeatureUpdate {
 
 // Agent types
 export type AgentStatus = 'stopped' | 'running' | 'paused' | 'crashed'
+export type AgentInstanceStatus = 'idle' | 'working' | 'paused' | 'stopped' | 'crashed'
 
 export interface AgentStatusResponse {
   status: AgentStatus
@@ -104,6 +117,45 @@ export interface AgentStatusResponse {
 export interface AgentActionResponse {
   success: boolean
   status: AgentStatus
+  message: string
+}
+
+// Multi-Agent Pool types
+export interface AgentInfo {
+  agent_id: string
+  status: AgentInstanceStatus
+  pid: number | null
+  model: string
+  yolo_mode: boolean
+  current_feature_id: number | null
+  started_at: string | null
+}
+
+export interface AgentPoolStatus {
+  project_name: string
+  agents: AgentInfo[]
+  active_count: number
+  idle_count: number
+  working_count: number
+  paused_count: number
+  total_count: number
+  max_agents: number
+}
+
+export interface SpawnAgentsRequest {
+  count: number
+  model: string
+  yolo_mode: boolean
+}
+
+export interface SpawnAgentsResponse {
+  spawned: number
+  agents: AgentInfo[]
+  errors: string[]
+}
+
+export interface AgentPoolActionResponse {
+  success: boolean
   message: string
 }
 
@@ -140,8 +192,92 @@ export interface TerminalInfo {
   created_at: string
 }
 
+// ============================================================================
+// Dependency Types
+// ============================================================================
+
+export interface FeatureDependency {
+  id: number
+  feature_id: number
+  depends_on_id: number
+  dependency_type: 'blocks' | 'requires' | 'related'
+  notes?: string | null
+  created_at?: string | null
+}
+
+export interface DependencyNode {
+  id: number
+  name: string
+  category: string
+  passes: boolean
+  in_progress: boolean
+  priority: number
+}
+
+export interface DependencyEdge {
+  source: number  // depends_on_id
+  target: number  // feature_id
+  dependency_type: string
+}
+
+export interface DependencyGraph {
+  features: DependencyNode[]
+  edges: DependencyEdge[]
+  blocked_features: number[]
+  ready_features: number[]
+}
+
+export interface FeatureDependencyInfo {
+  feature_id: number
+  feature_name: string
+  depends_on: Array<{
+    id: number
+    name: string
+    passes: boolean
+    in_progress: boolean
+    dependency_type: string
+    notes?: string | null
+  }>
+  blocks: Array<{
+    id: number
+    name: string
+    passes: boolean
+    in_progress: boolean
+    dependency_type: string
+  }>
+  all_satisfied: boolean
+  unsatisfied_ids: number[]
+}
+
+export interface BlockedFeature {
+  id: number
+  name: string
+  priority: number
+  unsatisfied_dependencies: Array<{
+    id: number
+    name: string
+    in_progress: boolean
+  }>
+}
+
+export interface BlockedFeaturesResponse {
+  blocked_count: number
+  blocked_features: BlockedFeature[]
+}
+
+export interface ReadyFeaturesResponse {
+  ready_count: number
+  ready_features: Array<{
+    id: number
+    name: string
+    priority: number
+    category: string
+    attempt_count: number
+  }>
+}
+
 // WebSocket message types
-export type WSMessageType = 'progress' | 'feature_update' | 'log' | 'agent_status' | 'pong' | 'dev_log' | 'dev_server_status'
+export type WSMessageType = 'progress' | 'feature_update' | 'log' | 'agent_status' | 'pong' | 'dev_log' | 'dev_server_status' | 'agent_pool' | 'agent_log' | 'agent_instance_status' | 'dependency_resolved'
 
 export interface WSProgressMessage {
   type: 'progress'
@@ -184,6 +320,35 @@ export interface WSDevServerStatusMessage {
   url: string | null
 }
 
+// Multi-agent WebSocket messages
+export interface WSAgentPoolMessage {
+  type: 'agent_pool'
+  agents: AgentInfo[]
+  active_count: number
+  idle_count: number
+  working_count: number
+}
+
+export interface WSAgentLogMessage {
+  type: 'agent_log'
+  agent_id: string
+  line: string
+  timestamp: string
+}
+
+export interface WSAgentInstanceStatusMessage {
+  type: 'agent_instance_status'
+  agent_id: string
+  status: AgentInstanceStatus
+  feature_id: number | null
+}
+
+export interface WSDependencyResolvedMessage {
+  type: 'dependency_resolved'
+  feature_id: number
+  unblocked_feature_ids: number[]
+}
+
 export type WSMessage =
   | WSProgressMessage
   | WSFeatureUpdateMessage
@@ -192,6 +357,10 @@ export type WSMessage =
   | WSPongMessage
   | WSDevLogMessage
   | WSDevServerStatusMessage
+  | WSAgentPoolMessage
+  | WSAgentLogMessage
+  | WSAgentInstanceStatusMessage
+  | WSDependencyResolvedMessage
 
 // ============================================================================
 // Spec Chat Types

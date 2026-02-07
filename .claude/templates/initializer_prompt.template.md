@@ -38,7 +38,8 @@ Use the feature_create_bulk tool with features=[
       "Step 1: Navigate to relevant page",
       "Step 2: Perform action",
       "Step 3: Verify expected result"
-    ]
+    ],
+    "depends_on": []
   },
   {
     "category": "style",
@@ -48,10 +49,42 @@ Use the feature_create_bulk tool with features=[
       "Step 1: Navigate to page",
       "Step 2: Take screenshot",
       "Step 3: Verify visual requirements"
-    ]
+    ],
+    "depends_on": [1, 2]
   }
 ]
 ```
+
+**CRITICAL: Analyze Feature Dependencies**
+
+When creating features, you MUST analyze which features depend on others:
+
+1. **Identify Prerequisites**: A feature depends on another if it cannot be implemented or tested until the prerequisite is complete
+2. **Use `depends_on` Field**: Pass an array of feature IDs that must be completed first
+3. **Order Matters**: Features are created with IDs starting from 1 in order, so plan your order carefully
+
+**Common Dependency Patterns:**
+- Authentication features → All features requiring login
+- Database setup → All CRUD operations
+- API endpoints → Frontend features that call them
+- Base components → Complex components using them
+- User creation → User profile, user settings
+- Navigation/routing → All page-specific features
+
+**Example Dependency Chain:**
+```
+ID 1: "User authentication system" (depends_on: [])
+ID 2: "User registration form" (depends_on: [])
+ID 3: "User login functionality" (depends_on: [1, 2])
+ID 4: "User dashboard page" (depends_on: [3])
+ID 5: "User profile settings" (depends_on: [3, 4])
+```
+
+**Multi-Agent Benefits:**
+When dependencies are set correctly:
+- Multiple agents can work in parallel on independent features
+- Agents automatically skip blocked features
+- No conflicts when agents claim features atomically
 
 **Notes:**
 - IDs and priorities are assigned automatically based on order

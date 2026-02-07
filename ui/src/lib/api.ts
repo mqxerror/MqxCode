@@ -14,6 +14,15 @@ import type {
   FeatureBulkCreateResponse,
   AgentStatusResponse,
   AgentActionResponse,
+  AgentPoolStatus,
+  AgentInfo,
+  SpawnAgentsRequest,
+  SpawnAgentsResponse,
+  AgentPoolActionResponse,
+  DependencyGraph,
+  FeatureDependencyInfo,
+  BlockedFeaturesResponse,
+  ReadyFeaturesResponse,
   SetupStatus,
   DirectoryListResponse,
   PathValidationResponse,
@@ -540,4 +549,177 @@ export async function getDbStats(projectName: string): Promise<DbStats> {
     total,
     percentage: total > 0 ? (done / total) * 100 : 0,
   }
+}
+
+// ============================================================================
+// Agent Pool API (Multi-Agent)
+// ============================================================================
+
+/**
+ * Get the status of the agent pool for a project.
+ */
+export async function getAgentPoolStatus(projectName: string): Promise<AgentPoolStatus> {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/agents`)
+}
+
+/**
+ * Spawn new agents in the pool.
+ */
+export async function spawnAgents(
+  projectName: string,
+  request: SpawnAgentsRequest
+): Promise<SpawnAgentsResponse> {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/agents`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+}
+
+/**
+ * Get information about a specific agent.
+ */
+export async function getAgentInfo(
+  projectName: string,
+  agentId: string
+): Promise<AgentInfo> {
+  return fetchJSON(
+    `/projects/${encodeURIComponent(projectName)}/agents/${encodeURIComponent(agentId)}`
+  )
+}
+
+/**
+ * Stop a specific agent.
+ */
+export async function stopPoolAgent(
+  projectName: string,
+  agentId: string
+): Promise<AgentPoolActionResponse> {
+  return fetchJSON(
+    `/projects/${encodeURIComponent(projectName)}/agents/${encodeURIComponent(agentId)}/stop`,
+    { method: 'POST' }
+  )
+}
+
+/**
+ * Pause a specific agent.
+ */
+export async function pausePoolAgent(
+  projectName: string,
+  agentId: string
+): Promise<AgentPoolActionResponse> {
+  return fetchJSON(
+    `/projects/${encodeURIComponent(projectName)}/agents/${encodeURIComponent(agentId)}/pause`,
+    { method: 'POST' }
+  )
+}
+
+/**
+ * Resume a paused agent.
+ */
+export async function resumePoolAgent(
+  projectName: string,
+  agentId: string
+): Promise<AgentPoolActionResponse> {
+  return fetchJSON(
+    `/projects/${encodeURIComponent(projectName)}/agents/${encodeURIComponent(agentId)}/resume`,
+    { method: 'POST' }
+  )
+}
+
+/**
+ * Stop all agents in the pool.
+ */
+export async function stopAllAgents(
+  projectName: string
+): Promise<{ stopped: number; errors: string[] }> {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/agents/stop-all`, {
+    method: 'POST',
+  })
+}
+
+/**
+ * Check health of all agents in the pool.
+ */
+export async function healthcheckAgents(
+  projectName: string
+): Promise<{ agents: Record<string, boolean>; all_healthy: boolean }> {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/agents/health`)
+}
+
+// ============================================================================
+// Dependencies API
+// ============================================================================
+
+/**
+ * Get the full dependency graph for a project.
+ */
+export async function getDependencyGraph(projectName: string): Promise<DependencyGraph> {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/dependencies`)
+}
+
+/**
+ * Get dependencies for a specific feature.
+ */
+export async function getFeatureDependencies(
+  projectName: string,
+  featureId: number
+): Promise<FeatureDependencyInfo> {
+  return fetchJSON(
+    `/projects/${encodeURIComponent(projectName)}/dependencies/features/${featureId}`
+  )
+}
+
+/**
+ * Add dependencies to a feature.
+ */
+export async function addFeatureDependencies(
+  projectName: string,
+  featureId: number,
+  dependsOnIds: number[],
+  dependencyType: string = 'blocks',
+  notes?: string
+): Promise<{ added: number; errors: string[] }> {
+  return fetchJSON(
+    `/projects/${encodeURIComponent(projectName)}/dependencies/features/${featureId}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        depends_on_ids: dependsOnIds,
+        dependency_type: dependencyType,
+        notes,
+      }),
+    }
+  )
+}
+
+/**
+ * Remove a dependency from a feature.
+ */
+export async function removeFeatureDependency(
+  projectName: string,
+  featureId: number,
+  dependsOnId: number
+): Promise<{ success: boolean; message: string }> {
+  return fetchJSON(
+    `/projects/${encodeURIComponent(projectName)}/dependencies/features/${featureId}/${dependsOnId}`,
+    { method: 'DELETE' }
+  )
+}
+
+/**
+ * Get all blocked features.
+ */
+export async function getBlockedFeatures(
+  projectName: string
+): Promise<BlockedFeaturesResponse> {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/dependencies/blocked`)
+}
+
+/**
+ * Get all ready features (dependencies satisfied).
+ */
+export async function getReadyFeatures(
+  projectName: string
+): Promise<ReadyFeaturesResponse> {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/dependencies/ready`)
 }

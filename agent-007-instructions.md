@@ -1,5 +1,31 @@
 # Agent 007 Instructions
 
+## Folder Locations (IMPORTANT - Read First)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ MqxCode Harness (The Tool)                                                  │
+│ /Users/mqxerrormac16/Documents/LangarAI/MqxCode                             │
+│                                                                             │
+│ QA-Dam3oun / QA Guardian (The Project Being Managed)                        │
+│ /Users/mqxerrormac16/Documents/QA-Dam3oun                                   │
+│                                                                             │
+│ Features Database (WHERE ALL FEATURES ARE STORED)                           │
+│ /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db                       │
+│                                                                             │
+│ Production Server                                                           │
+│ 38.111.111.206 → /opt/qa-guardian/                                          │
+│                                                                             │
+│ Production URL                                                              │
+│ https://qa.pixelcraftedmedia.com                                            │
+│                                                                             │
+│ GitHub Repository                                                           │
+│ https://github.com/mqxerror/qa-guardian                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Role
 
 You (Claude Code / Agent 007) manage **two systems** and **two applications**:
@@ -213,3 +239,293 @@ The user prefers sub-agents for tasks to keep context low:
 - **webapp-testing skill**: For Playwright-based UI verification
 
 Always use sub-agents for tasks touching 3+ files or requiring extensive search.
+
+---
+
+## CRITICAL: Managing QA-Dam3oun from MqxCode
+
+### Understanding the Relationship
+
+```
+MqxCode (Harness Tool)              QA-Dam3oun (Managed Project)
+/Documents/LangarAI/MqxCode/   -->  /Documents/QA-Dam3oun/
+├── agent-007-instructions.md       ├── features.db  ← THE ACTUAL DATABASE
+├── api/database.py (schema)        ├── backend/
+├── mcp_server/ (MCP tools)         ├── frontend/
+└── features.db (EMPTY, ignore)     └── docker-compose.yml
+```
+
+**IMPORTANT**: The `features.db` in MqxCode folder is EMPTY and unused. All features are stored in **QA-Dam3oun/features.db**.
+
+### Features Database Location
+
+```bash
+# CORRECT - QA-Dam3oun project database (this is where features live)
+/Users/mqxerrormac16/Documents/QA-Dam3oun/features.db
+
+# WRONG - MqxCode harness database (empty, do not use)
+/Users/mqxerrormac16/Documents/LangarAI/MqxCode/features.db
+```
+
+### Database Schema (features table)
+
+```sql
+CREATE TABLE features (
+    id INTEGER PRIMARY KEY,
+    priority INTEGER NOT NULL DEFAULT 999,  -- Lower = higher priority
+    category VARCHAR(100) NOT NULL,         -- e.g., "Performance/Backend"
+    name VARCHAR(255) NOT NULL,             -- Short descriptive name
+    description TEXT NOT NULL,              -- Detailed description
+    steps JSON NOT NULL,                    -- Array of implementation steps
+    passes BOOLEAN DEFAULT 0,               -- 1 = completed, 0 = pending
+    in_progress BOOLEAN DEFAULT 0,          -- 1 = being worked on
+    verification_command TEXT,              -- Optional shell command to verify
+    verification_evidence TEXT,             -- Proof of completion (min 50 chars)
+    marked_passing_at TEXT                  -- ISO timestamp when completed
+);
+```
+
+### How to Add New Features
+
+**Step 1: Check current max ID**
+```bash
+sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db \
+  "SELECT MAX(id) FROM features;"
+```
+
+**Step 2: Insert new features (starting from MAX_ID + 1)**
+```sql
+sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db "
+INSERT INTO features (id, priority, category, name, description, steps, passes, in_progress)
+VALUES
+(NEXT_ID, PRIORITY, 'Category/Subcategory', 'Feature name',
+ 'Detailed description of what needs to be done.',
+ '[\"Step 1\",\"Step 2\",\"Step 3\",\"Test: verification step\"]',
+ 0, 0);
+"
+```
+
+**Step 3: Verify features were added**
+```bash
+sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db \
+  "SELECT id, priority, name, passes FROM features WHERE id >= NEXT_ID ORDER BY id;"
+```
+
+### Check Feature Statistics
+
+```bash
+# Get counts
+sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db "
+SELECT
+  COUNT(*) as total,
+  SUM(CASE WHEN passes=1 THEN 1 ELSE 0 END) as completed,
+  SUM(CASE WHEN passes=0 AND in_progress=0 THEN 1 ELSE 0 END) as pending,
+  SUM(CASE WHEN in_progress=1 THEN 1 ELSE 0 END) as in_progress
+FROM features;"
+
+# List pending features by priority
+sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db "
+SELECT id, priority, category, name FROM features
+WHERE passes=0 ORDER BY priority, id LIMIT 20;"
+```
+
+### Priority Levels
+
+| Priority | Meaning | When to Use |
+|----------|---------|-------------|
+| 1 | Critical | Blocking issues, security fixes, core functionality |
+| 2 | High | Important features, performance improvements |
+| 3 | Medium | Nice-to-have features, refactoring |
+| 4 | Low | Enhancements, polish, future considerations |
+
+### Category Naming Convention
+
+Use `Area/Subcategory` format:
+- `Performance/Backend` — Backend performance optimizations
+- `Performance/Frontend` — Frontend performance optimizations
+- `Performance/Database` — Database indexes, queries
+- `Security/DAST` — Dynamic security scanning
+- `Security/SAST` — Static security scanning
+- `UI/Dashboard` — Dashboard improvements
+- `API/Endpoints` — API route changes
+- `Bug/Critical` — Critical bug fixes
+
+---
+
+## Production Deployment Issues & Fixes
+
+### Common Issue: ZAP Container Blocking Backend
+
+**Symptom**: Production shows "Bad Gateway", logs show:
+```
+Container qa-guardian-zap Error dependency zap failed to start
+dependency failed to start: container qa-guardian-zap is unhealthy
+```
+
+**Cause**: Backend depends on ZAP container with `condition: service_healthy`, but ZAP health check fails.
+
+**Fix**: Make ZAP optional in `docker-compose.yml`:
+```yaml
+backend:
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    # ZAP is optional - don't block backend startup
+    # zap:
+    #   condition: service_healthy
+```
+
+### Common Issue: Login Fails with "Not associated with organization"
+
+**Symptom**: Users can't log in, error: "Your account is not associated with any organization"
+
+**Cause**: `initTestUsers()` called at module load time before database connection established.
+
+**Fix**: Call `initTestUsers()` AFTER `initializeDatabase()` in `backend/src/index.ts`:
+```typescript
+// In start() function, AFTER initializeDatabase():
+try {
+  await initTestUsers();
+} catch (err: any) {
+  console.error('[Startup] Failed to seed test users:', err.message);
+}
+```
+
+### GitHub Actions Deployment Pipeline
+
+The CI/CD is in `.github/workflows/deploy.yml`:
+1. Push to `main` triggers build
+2. Build & test job runs (frontend + backend)
+3. Deploy job SSHs to production and runs:
+   ```bash
+   cd /opt/qa-guardian
+   git pull origin main
+   docker compose build backend frontend
+   docker compose up -d --force-recreate backend frontend
+   ```
+
+### Verify Production Health
+
+```bash
+# Check if site is up
+curl -sf https://qa.pixelcraftedmedia.com/api/v1/health
+
+# Check backend logs on production
+sshpass -p '5ty6%TY^5ty6' ssh root@38.111.111.206 \
+  "docker logs qa-guardian-backend --tail 50"
+
+# Check container status
+sshpass -p '5ty6%TY^5ty6' ssh root@38.111.111.206 \
+  "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+```
+
+---
+
+## Performance Optimization Context (Features #53-65)
+
+### Problem Statement
+Large projects with many tests experience slow loading:
+- RunHistoryPage loads 1000 runs at once
+- ProjectDetailPage makes 11+ sequential API calls
+- React Query installed but unused (348 vanilla fetch calls)
+- Redis installed but not used for caching
+- Missing database indexes
+
+### Solution Architecture
+
+**Phase 1: Backend Pagination** (Features #53-55)
+- Add `page`, `limit` query params to list endpoints
+- Return paginated response: `{ data: [], pagination: { page, limit, total, hasNext } }`
+
+**Phase 2: React Query Hooks** (Features #56-59)
+- Create hooks in `frontend/src/hooks/api/`
+- Replace vanilla fetch with `useQuery`/`useMutation`
+- Enable automatic caching and deduplication
+
+**Phase 3: Redis Caching** (Features #60-62)
+- Create `backend/src/services/cache.ts`
+- Cache frequently accessed data with TTLs
+- Invalidate cache on mutations
+
+**Phase 4: Advanced** (Features #63-65)
+- Virtual scrolling for large lists
+- Infinite scroll
+- Optimistic updates
+
+### Key Files for Performance Work
+
+```
+backend/
+├── src/routes/test-runs/run-core-routes.ts  # Pagination for runs
+├── src/routes/test-suites/routes.ts         # Pagination for tests
+├── src/routes/projects/routes.ts            # Pagination for suites
+├── src/services/cache.ts                    # Redis cache (create new)
+└── src/services/database.ts                 # Add indexes
+
+frontend/
+├── src/hooks/api/useRuns.ts                 # React Query hooks (create new)
+├── src/hooks/api/useProjects.ts
+├── src/hooks/api/useSuites.ts
+├── src/hooks/api/useTests.ts
+├── src/pages/RunHistoryPage.tsx             # Migrate to React Query
+├── src/pages/ProjectDetailPage.tsx          # Parallelize API calls
+└── src/pages/TestSuitePage.tsx              # Migrate to React Query
+```
+
+---
+
+## Quick Reference Commands
+
+```bash
+# Check QA-Dam3oun feature stats
+sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db \
+  "SELECT COUNT(*) as total, SUM(passes) as done FROM features;"
+
+# List pending features
+sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db \
+  "SELECT id, name FROM features WHERE passes=0 ORDER BY priority, id;"
+
+# Mark feature as passing (for manual fixes)
+sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db "
+UPDATE features SET
+  passes=1,
+  in_progress=0,
+  verification_evidence='Manual fix: description here. Commit: HASH',
+  marked_passing_at=datetime('now')
+WHERE id=FEATURE_ID;"
+
+# Production health check
+curl -sf https://qa.pixelcraftedmedia.com/api/v1/health | jq
+
+# Deploy to production (after pushing to GitHub)
+sshpass -p '5ty6%TY^5ty6' ssh root@38.111.111.206 \
+  "cd /opt/qa-guardian && git pull && docker compose build backend frontend && docker compose up -d"
+```
+
+---
+
+## Session Recovery Checklist
+
+When starting a new session or recovering from crash:
+
+1. **Check current feature status**:
+   ```bash
+   sqlite3 /Users/mqxerrormac16/Documents/QA-Dam3oun/features.db \
+     "SELECT COUNT(*) as total, SUM(passes) as done, SUM(in_progress) as wip FROM features;"
+   ```
+
+2. **Check production status**:
+   ```bash
+   curl -sf https://qa.pixelcraftedmedia.com/api/v1/health
+   ```
+
+3. **Check git status** in QA-Dam3oun:
+   ```bash
+   cd /Users/mqxerrormac16/Documents/QA-Dam3oun && git status
+   ```
+
+4. **Review MqxCode UI** at http://127.0.0.1:5173 (or wherever it's running)
+
+5. **Read this file** for context on pending work and known issues

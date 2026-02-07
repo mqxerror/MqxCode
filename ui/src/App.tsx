@@ -16,7 +16,7 @@ import { ProgressDashboard } from './components/ProgressDashboard'
 import { AgentThought } from './components/AgentThought'
 import { AssistantFAB } from './components/AssistantFAB'
 import { DevServerControl } from './components/DevServerControl'
-import { Loader2, Settings, Moon, Sun, Bug, Terminal, MessageCircle, FileText, Settings2, MonitorCog } from 'lucide-react'
+import { Loader2, Settings, Moon, Sun, Bug, Terminal, MessageCircle, FileText, Settings2, MonitorCog, GitBranch } from 'lucide-react'
 import { PixelatedCanvas } from './components/aceternity/pixelated-canvas'
 import type { Feature } from './lib/types'
 import type { TabType } from './components/DebugLogViewer'
@@ -34,6 +34,7 @@ const SpecViewer = lazy(() => import('./components/spec-viewer').then(m => ({ de
 const CommandCenter = lazy(() => import('./components/command-center').then(m => ({ default: m.CommandCenter })))
 const ServerTasks = lazy(() => import('./components/command-center').then(m => ({ default: m.ServerTasks })))
 const CreativeSidebar = lazy(() => import('./components/CreativeSidebar').then(m => ({ default: m.CreativeSidebar })))
+const DependencyGraph = lazy(() => import('./components/DependencyGraph').then(m => ({ default: m.DependencyGraphView })))
 
 // Loading fallback for lazy components
 function LoadingFallback() {
@@ -68,6 +69,7 @@ function App() {
   const [showSpecPanel, setShowSpecPanel] = useState(false)
   const [showConfigPanel, setShowConfigPanel] = useState(false)
   const [showTasksPanel, setShowTasksPanel] = useState(false)
+  const [showDependencyPanel, setShowDependencyPanel] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
       return localStorage.getItem('sidebar-open') !== 'false'
@@ -349,6 +351,13 @@ function App() {
                     >
                       <MonitorCog size={18} />
                     </button>
+                    <button
+                      onClick={() => setShowDependencyPanel(true)}
+                      className="btn btn-ghost btn-icon"
+                      title="Feature Dependencies"
+                    >
+                      <GitBranch size={18} />
+                    </button>
 
                     {/* Divider */}
                     <div className="w-px h-5 bg-[var(--color-border)] mx-1" />
@@ -553,6 +562,19 @@ function App() {
             <div className="p-4">
               <ServerTasks projectName={selectedProject} />
             </div>
+          </SlidePanel>
+        )}
+
+        {/* Feature Dependencies Panel */}
+        {showDependencyPanel && selectedProject && (
+          <SlidePanel
+            isOpen={showDependencyPanel}
+            onClose={() => setShowDependencyPanel(false)}
+            title="Feature Dependencies"
+            icon={<GitBranch size={18} className="text-[var(--color-accent-primary)]" />}
+            width="2xl"
+          >
+            <DependencyGraph projectName={selectedProject} />
           </SlidePanel>
         )}
       </Suspense>

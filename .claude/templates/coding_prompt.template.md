@@ -3,25 +3,15 @@
 You are continuing work on a long-running autonomous development task.
 This is a FRESH context window - you have no memory of previous sessions.
 
+**CRITICAL: Execute tools ONE AT A TIME, sequentially. Never make parallel tool calls.**
+
 ### STEP 1: GET YOUR BEARINGS (MANDATORY)
 
-Start by orienting yourself:
+Start by orienting yourself. Execute these commands ONE BY ONE (not in parallel):
 
 ```bash
-# 1. See your working directory
-pwd
-
-# 2. List files to understand project structure
-ls -la
-
-# 3. Read the project specification to understand what you're building
-cat app_spec.txt
-
-# 4. Read progress notes from previous sessions (last 500 lines to avoid context overflow)
-tail -500 claude-progress.txt
-
-# 5. Check recent git history
-git log --oneline -20
+# 1. See your working directory, list files, read spec, notes, and git history (ALL IN ONE COMMAND)
+pwd && ls -la && cat prompts/app_spec.txt && tail -500 claude-progress.txt 2>/dev/null && git log --oneline -20
 ```
 
 Then use MCP tools to check feature status:
@@ -256,12 +246,31 @@ For API endpoints used by this feature:
 
 **YOU CAN ONLY MODIFY ONE FIELD: "passes"**
 
-After thorough verification, mark the feature as passing:
+After thorough verification, mark the feature as passing. You MUST provide verification evidence:
 
 ```
-# Mark feature #42 as passing (replace 42 with the actual feature ID)
-Use the feature_mark_passing tool with feature_id=42
+# Mark feature #42 as passing — evidence is MANDATORY (min 50 characters)
+Use the feature_mark_passing tool with:
+  feature_id=42
+  evidence="Verified login form renders correctly. Ran npx tsc --noEmit with 0 errors.
+  Browser screenshot confirms dashboard loads. Console shows no JS errors.
+  grep -c 'old_pattern' returned 0 confirming migration is complete."
 ```
+
+**REQUIREMENTS for feature_mark_passing:**
+1. The feature MUST be in_progress (call feature_mark_in_progress first)
+2. The evidence parameter is MANDATORY — minimum 50 characters
+3. Evidence must describe SPECIFIC observations, not generic claims
+4. If the feature has a verification_command, it runs automatically and must pass
+5. Rate limit: max 3 features per 5 minutes (prevents mass-marking)
+
+**BAD evidence (will be rejected):**
+- "tested and works"
+- "all good"
+- "verified"
+
+**GOOD evidence:**
+- "Ran 'npx tsc --noEmit' — 0 errors. grep -c 'projects.get' returned 0. Screenshot shows dashboard loads with real data."
 
 **NEVER:**
 
@@ -271,7 +280,7 @@ Use the feature_mark_passing tool with feature_id=42
 - Combine or consolidate features
 - Reorder features
 
-**ONLY MARK A FEATURE AS PASSING AFTER VERIFICATION WITH SCREENSHOTS.**
+**ONLY MARK A FEATURE AS PASSING AFTER VERIFICATION WITH EVIDENCE.**
 
 ### STEP 8: COMMIT YOUR PROGRESS
 
@@ -377,8 +386,8 @@ feature_mark_in_progress with feature_id={id}
 # 4. Get up to 3 random passing features for regression testing
 feature_get_for_regression
 
-# 5. Mark a feature as passing (after verification)
-feature_mark_passing with feature_id={id}
+# 5. Mark a feature as passing (after verification — evidence REQUIRED)
+feature_mark_passing with feature_id={id}, evidence="Detailed description of what you verified..."
 
 # 6. Skip a feature (moves to end of queue) - ONLY when blocked by dependency
 feature_skip with feature_id={id}

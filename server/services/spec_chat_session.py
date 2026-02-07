@@ -172,7 +172,7 @@ class SpecChatSession:
         try:
             self.client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-opus-4-5-20251101",
+                    model="claude-opus-4-6",
                     cli_path=system_cli,
                     # System prompt loaded from CLAUDE.md via setting_sources
                     # This avoids Windows command line length limit (~8191 chars)

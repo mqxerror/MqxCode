@@ -171,7 +171,7 @@ class ExpandChatSession:
         try:
             self.client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-opus-4-5-20251101",
+                    model="claude-opus-4-6",
                     cli_path=system_cli,
                     system_prompt=system_prompt,
                     allowed_tools=[

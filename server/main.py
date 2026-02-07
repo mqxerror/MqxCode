@@ -23,8 +23,10 @@ from fastapi.staticfiles import StaticFiles
 
 from .routers import (
     agent_router,
+    # agent_pool_router,
     assistant_chat_router,
     config_router,
+    # dependencies_router,
     devserver_router,
     expand_project_router,
     features_router,
@@ -43,6 +45,7 @@ from .services.dev_server_manager import (
 )
 from .services.expand_chat_session import cleanup_all_expand_sessions
 from .services.process_manager import cleanup_all_managers, cleanup_orphaned_locks
+# from .services.agent_pool_manager import cleanup_all_pools, cleanup_orphaned_agent_locks  # TODO: needs Agent model
 from .services.terminal_manager import cleanup_all_terminals
 from .websocket import project_websocket
 
@@ -56,10 +59,12 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown."""
     # Startup - clean up orphaned lock files from previous runs
     cleanup_orphaned_locks()
+    # cleanup_orphaned_agent_locks()  # TODO: needs Agent model
     cleanup_orphaned_devserver_locks()
     yield
     # Shutdown - cleanup all running agents, sessions, terminals, and dev servers
     await cleanup_all_managers()
+    # await cleanup_all_pools()  # TODO: needs Agent model
     await cleanup_assistant_sessions()
     await cleanup_all_expand_sessions()
     await cleanup_all_terminals()
@@ -112,6 +117,8 @@ async def require_localhost(request: Request, call_next):
 app.include_router(projects_router)
 app.include_router(features_router)
 app.include_router(agent_router)
+# app.include_router(agent_pool_router)  # TODO: needs Agent model
+# app.include_router(dependencies_router)  # TODO: needs Agent model
 app.include_router(devserver_router)
 app.include_router(spec_creation_router)
 app.include_router(expand_project_router)

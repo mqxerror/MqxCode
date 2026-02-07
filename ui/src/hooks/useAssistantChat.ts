@@ -21,6 +21,7 @@ interface UseAssistantChatReturn {
   sendMessage: (content: string, attachments?: ImageAttachment[]) => void;
   disconnect: () => void;
   clearMessages: () => void;
+  restoreMessages: (restoredMessages: ChatMessage[]) => void;
 }
 
 function generateId(): string {
@@ -358,6 +359,10 @@ export function useAssistantChat({
     setConversationId(null);
   }, []);
 
+  const restoreMessages = useCallback((restoredMessages: ChatMessage[]) => {
+    setMessages(restoredMessages);
+  }, []);
+
   return {
     messages,
     isLoading,
@@ -367,5 +372,6 @@ export function useAssistantChat({
     sendMessage,
     disconnect,
     clearMessages,
+    restoreMessages,
   };
 }

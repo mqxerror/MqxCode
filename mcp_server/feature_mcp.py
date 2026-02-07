@@ -18,10 +18,14 @@ Tools:
 - feature_create: Create a single feature
 """
 
+import datetime
 import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -33,7 +37,7 @@ from sqlalchemy.sql.expression import func
 # Add parent directory to path so we can import from api module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.database import Feature, create_database
+from api.database import Feature, StatusChangeLog, create_database
 from api.migration import migrate_json_to_sqlite
 
 # Configuration from environment
@@ -208,32 +212,166 @@ def feature_get_for_regression(
         session.close()
 
 
+# =============================================================================
+# Rate Limiting & Backup State
+# =============================================================================
+_mark_passing_timestamps: list[float] = []
+_MAX_MARKS_PER_WINDOW = 3
+_WINDOW_SECONDS = 300  # 5 minutes
+_last_backup_time: float = 0
+_BACKUP_COOLDOWN = 60  # seconds between backups
+
+
+def _check_rate_limit() -> tuple[bool, str]:
+    """Prevent mass-marking by limiting marks per time window."""
+    now = time.time()
+    _mark_passing_timestamps[:] = [t for t in _mark_passing_timestamps if now - t < _WINDOW_SECONDS]
+    if len(_mark_passing_timestamps) >= _MAX_MARKS_PER_WINDOW:
+        oldest = min(_mark_passing_timestamps)
+        wait = int(_WINDOW_SECONDS - (now - oldest))
+        return False, (
+            f"Rate limit: max {_MAX_MARKS_PER_WINDOW} features per {_WINDOW_SECONDS // 60} minutes. "
+            f"Wait {wait}s. This prevents mass-marking without proper verification."
+        )
+    return True, ""
+
+
+def _backup_database() -> None:
+    """Create timestamped backup of features.db before status changes."""
+    global _last_backup_time
+    now = time.time()
+    if now - _last_backup_time < _BACKUP_COOLDOWN:
+        return
+    db_path = PROJECT_DIR / "features.db"
+    if db_path.exists():
+        backup_dir = PROJECT_DIR / ".features_backups"
+        backup_dir.mkdir(exist_ok=True)
+        ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        shutil.copy2(db_path, backup_dir / f"features_{ts}.db")
+        # Keep last 20 backups
+        backups = sorted(backup_dir.glob("features_*.db"))
+        for old in backups[:-20]:
+            old.unlink()
+        _last_backup_time = now
+
+
+def _log_status_change(session, feature, old_status: str, new_status: str,
+                       evidence: str = None, verification_output: str = None) -> None:
+    """Write an audit record for every status change."""
+    log = StatusChangeLog(
+        feature_id=feature.id,
+        feature_name=feature.name,
+        old_status=old_status,
+        new_status=new_status,
+        evidence=evidence,
+        verification_output=verification_output,
+        timestamp=datetime.datetime.utcnow().isoformat() + "Z",
+    )
+    session.add(log)
+
+
 @mcp.tool()
 def feature_mark_passing(
-    feature_id: Annotated[int, Field(description="The ID of the feature to mark as passing", ge=1)]
+    feature_id: Annotated[int, Field(description="The ID of the feature to mark as passing", ge=1)],
+    evidence: Annotated[str, Field(
+        description=(
+            "MANDATORY verification evidence. Describe specifically what you tested and "
+            "what the results were. Include command outputs, screenshot observations, or "
+            "test results. Must be at least 50 characters. Generic claims like 'tested and works' "
+            "will be rejected."
+        ),
+        min_length=50,
+    )] = ""
 ) -> str:
-    """Mark a feature as passing after successful implementation.
+    """Mark a feature as passing after successful implementation AND verification.
 
-    Updates the feature's passes field to true and clears the in_progress flag.
-    Use this after you have implemented the feature and verified it works correctly.
+    REQUIREMENTS — all must be met or the call is rejected:
+    1. Feature must be in_progress=true (call feature_mark_in_progress first)
+    2. You must provide verification evidence (min 50 chars) describing what you verified
+    3. If the feature has a verification_command, it is executed automatically and must exit 0
+    4. Rate limit: max 3 features per 5 minutes
 
     Args:
         feature_id: The ID of the feature to mark as passing
+        evidence: Detailed description of what you verified (min 50 characters)
 
     Returns:
-        JSON with the updated feature details, or error if not found.
+        JSON with the updated feature details, or error explaining why verification failed.
     """
+    # --- Layer 1: Rate limit ---
+    allowed, msg = _check_rate_limit()
+    if not allowed:
+        return json.dumps({"error": msg})
+
+    # --- Layer 2: Evidence check ---
+    if not evidence or len(evidence.strip()) < 50:
+        return json.dumps({
+            "error": "Verification evidence is REQUIRED and must be at least 50 characters. "
+                     "Describe specifically what you tested and what the results were."
+        })
+
     session = get_session()
     try:
         feature = session.query(Feature).filter(Feature.id == feature_id).first()
-
         if feature is None:
             return json.dumps({"error": f"Feature with ID {feature_id} not found"})
 
+        # --- Layer 3: State machine — must be in_progress ---
+        if not feature.in_progress:
+            return json.dumps({
+                "error": f"Feature {feature_id} is NOT in-progress. "
+                         f"You must call feature_mark_in_progress({feature_id}) first, "
+                         f"do the work, then call feature_mark_passing."
+            })
+
+        # --- Layer 4: Run verification command if set ---
+        verification_output = None
+        if feature.verification_command:
+            try:
+                result = subprocess.run(
+                    feature.verification_command,
+                    shell=True,
+                    cwd=str(PROJECT_DIR),
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                verification_output = (result.stdout[-1000:] if result.stdout else "") + \
+                                      (result.stderr[-1000:] if result.stderr else "")
+                if result.returncode != 0:
+                    return json.dumps({
+                        "error": f"Verification command FAILED (exit code {result.returncode}). "
+                                 f"Fix the issues and try again.",
+                        "command": feature.verification_command,
+                        "stdout": result.stdout[-500:] if result.stdout else "",
+                        "stderr": result.stderr[-500:] if result.stderr else "",
+                    })
+            except subprocess.TimeoutExpired:
+                return json.dumps({
+                    "error": "Verification command timed out (120s limit).",
+                    "command": feature.verification_command,
+                })
+
+        # --- Layer 5: Backup database before change ---
+        _backup_database()
+
+        # --- Layer 6: Apply the change ---
+        old_status = "in_progress"
         feature.passes = True
         feature.in_progress = False
+        feature.verification_evidence = evidence.strip()
+        feature.marked_passing_at = datetime.datetime.utcnow().isoformat() + "Z"
+
+        # --- Layer 7: Audit log ---
+        _log_status_change(session, feature, old_status, "passing",
+                           evidence=evidence.strip(),
+                           verification_output=verification_output)
+
         session.commit()
         session.refresh(feature)
+
+        # Record timestamp for rate limiter
+        _mark_passing_timestamps.append(time.time())
 
         return json.dumps(feature.to_dict(), indent=2)
     finally:

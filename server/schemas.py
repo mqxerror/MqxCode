@@ -104,9 +104,21 @@ class FeatureResponse(FeatureBase):
     priority: int
     passes: bool
     in_progress: bool
+    assigned_to_agent_id: Optional[str] = None
+    attempt_count: int = 0
+    blocked_reason: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class FeatureWithDependencies(FeatureResponse):
+    """Feature response with dependency information."""
+    depends_on: List[int] = []
+    blocks: List[int] = []
+    dependencies_satisfied: bool = True
 
 
 class FeatureListResponse(BaseModel):
@@ -204,6 +216,42 @@ class WSAgentStatusMessage(BaseModel):
     """WebSocket message for agent status changes."""
     type: Literal["agent_status"] = "agent_status"
     status: str
+
+
+# ============================================================================
+# Multi-Agent WebSocket Message Schemas
+# ============================================================================
+
+class WSAgentPoolMessage(BaseModel):
+    """WebSocket message for agent pool status updates."""
+    type: Literal["agent_pool"] = "agent_pool"
+    agents: List[dict]
+    active_count: int
+    idle_count: int
+    working_count: int
+
+
+class WSAgentLogMessage(BaseModel):
+    """WebSocket message for individual agent log output."""
+    type: Literal["agent_log"] = "agent_log"
+    agent_id: str
+    line: str
+    timestamp: datetime
+
+
+class WSAgentInstanceStatusMessage(BaseModel):
+    """WebSocket message for individual agent status changes."""
+    type: Literal["agent_instance_status"] = "agent_instance_status"
+    agent_id: str
+    status: str
+    feature_id: Optional[int] = None
+
+
+class WSDependencyResolvedMessage(BaseModel):
+    """WebSocket message when a dependency is resolved."""
+    type: Literal["dependency_resolved"] = "dependency_resolved"
+    feature_id: int
+    unblocked_feature_ids: List[int]
 
 
 # ============================================================================

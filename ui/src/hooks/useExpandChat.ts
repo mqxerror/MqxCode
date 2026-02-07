@@ -29,6 +29,8 @@ interface UseExpandChatReturn {
   start: () => void
   sendMessage: (content: string, attachments?: ImageAttachment[]) => void
   disconnect: () => void
+  clearMessages: () => void
+  restoreMessages: (restoredMessages: ChatMessage[]) => void
 }
 
 function generateId(): string {
@@ -331,6 +333,17 @@ export function useExpandChat({
     setConnectionStatus('disconnected')
   }, [])
 
+  const clearMessages = useCallback(() => {
+    setMessages([])
+    setFeaturesCreated(0)
+    setRecentFeatures([])
+    setIsComplete(false)
+  }, [])
+
+  const restoreMessages = useCallback((restoredMessages: ChatMessage[]) => {
+    setMessages(restoredMessages)
+  }, [])
+
   return {
     messages,
     isLoading,
@@ -341,5 +354,7 @@ export function useExpandChat({
     start,
     sendMessage,
     disconnect,
+    clearMessages,
+    restoreMessages,
   }
 }

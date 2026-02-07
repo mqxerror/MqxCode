@@ -141,12 +141,21 @@ mypy .
 
 **YOU CAN ONLY MODIFY ONE FIELD: "passes"**
 
-After lint/type-check passes, mark the feature as passing:
+After lint/type-check passes, mark the feature as passing. You MUST provide evidence:
 
 ```
-# Mark feature #42 as passing (replace 42 with the actual feature ID)
-Use the feature_mark_passing tool with feature_id=42
+# Mark feature #42 as passing — evidence is MANDATORY (min 50 characters)
+Use the feature_mark_passing tool with:
+  feature_id=42
+  evidence="Ran npx tsc --noEmit with 0 errors. npm run lint passed with 0 warnings.
+  grep -c 'old_pattern' returned 0, confirming migration complete."
 ```
+
+**REQUIREMENTS for feature_mark_passing:**
+1. Feature MUST be in_progress (call feature_mark_in_progress first)
+2. Evidence parameter is MANDATORY — minimum 50 characters
+3. Evidence must describe SPECIFIC outputs (command results, error counts, etc.)
+4. Rate limit: max 3 features per 5 minutes
 
 **NEVER:**
 
@@ -208,8 +217,8 @@ feature_get_next
 # 3. Mark a feature as in-progress (call immediately after feature_get_next)
 feature_mark_in_progress with feature_id={id}
 
-# 4. Mark a feature as passing (after lint/type-check succeeds)
-feature_mark_passing with feature_id={id}
+# 4. Mark a feature as passing (after lint/type-check — evidence REQUIRED)
+feature_mark_passing with feature_id={id}, evidence="Detailed description of what you verified..."
 
 # 5. Skip a feature (moves to end of queue) - ONLY when blocked by dependency
 feature_skip with feature_id={id}

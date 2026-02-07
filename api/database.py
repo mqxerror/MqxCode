@@ -3,6 +3,7 @@ Database Models and Connection
 ==============================
 
 SQLite database schema for feature storage using SQLAlchemy.
+Includes verification enforcement and audit logging.
 """
 
 from pathlib import Path
@@ -29,6 +30,10 @@ class Feature(Base):
     steps = Column(JSON, nullable=False)  # Stored as JSON array
     passes = Column(Boolean, default=False, index=True)
     in_progress = Column(Boolean, default=False, index=True)
+    # Verification fields
+    verification_command = Column(Text, nullable=True)  # Shell command that must pass (exit 0)
+    verification_evidence = Column(Text, nullable=True)  # Agent's proof of work
+    marked_passing_at = Column(Text, nullable=True)  # ISO timestamp when marked passing
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -41,7 +46,25 @@ class Feature(Base):
             "steps": self.steps,
             "passes": self.passes,
             "in_progress": self.in_progress,
+            "verification_command": self.verification_command,
+            "verification_evidence": self.verification_evidence,
+            "marked_passing_at": self.marked_passing_at,
         }
+
+
+class StatusChangeLog(Base):
+    """Audit log for feature status changes."""
+
+    __tablename__ = "status_change_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    feature_id = Column(Integer, nullable=False, index=True)
+    feature_name = Column(String(255), nullable=False)
+    old_status = Column(String(50), nullable=False)
+    new_status = Column(String(50), nullable=False)
+    evidence = Column(Text, nullable=True)
+    verification_output = Column(Text, nullable=True)
+    timestamp = Column(Text, nullable=False)
 
 
 def get_database_path(project_dir: Path) -> Path:
@@ -58,19 +81,26 @@ def get_database_url(project_dir: Path) -> str:
     return f"sqlite:///{db_path.as_posix()}"
 
 
-def _migrate_add_in_progress_column(engine) -> None:
-    """Add in_progress column to existing databases that don't have it."""
+def _migrate_add_columns(engine) -> None:
+    """Add new columns to existing databases that don't have them."""
     from sqlalchemy import text
 
     with engine.connect() as conn:
-        # Check if column exists
         result = conn.execute(text("PRAGMA table_info(features)"))
         columns = [row[1] for row in result.fetchall()]
 
-        if "in_progress" not in columns:
-            # Add the column with default value
-            conn.execute(text("ALTER TABLE features ADD COLUMN in_progress BOOLEAN DEFAULT 0"))
-            conn.commit()
+        migrations = {
+            "in_progress": "ALTER TABLE features ADD COLUMN in_progress BOOLEAN DEFAULT 0",
+            "verification_command": "ALTER TABLE features ADD COLUMN verification_command TEXT",
+            "verification_evidence": "ALTER TABLE features ADD COLUMN verification_evidence TEXT",
+            "marked_passing_at": "ALTER TABLE features ADD COLUMN marked_passing_at TEXT",
+        }
+
+        for col_name, sql in migrations.items():
+            if col_name not in columns:
+                conn.execute(text(sql))
+
+        conn.commit()
 
 
 def create_database(project_dir: Path) -> tuple:
@@ -87,8 +117,8 @@ def create_database(project_dir: Path) -> tuple:
     engine = create_engine(db_url, connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)
 
-    # Migrate existing databases to add in_progress column
-    _migrate_add_in_progress_column(engine)
+    # Migrate existing databases
+    _migrate_add_columns(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return engine, SessionLocal

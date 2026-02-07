@@ -6,8 +6,10 @@ FastAPI routers for different API endpoints.
 """
 
 from .agent import router as agent_router
+# from .agent_pool import router as agent_pool_router  # TODO: needs Agent model in database.py
 from .assistant_chat import router as assistant_chat_router
 from .config import router as config_router
+# from .dependencies import router as dependencies_router  # TODO: needs Agent model
 from .devserver import router as devserver_router
 from .expand_project import router as expand_project_router
 from .features import router as features_router
@@ -22,6 +24,8 @@ __all__ = [
     "projects_router",
     "features_router",
     "agent_router",
+    # "agent_pool_router",
+    # "dependencies_router",
     "devserver_router",
     "spec_creation_router",
     "expand_project_router",

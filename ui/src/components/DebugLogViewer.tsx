@@ -8,7 +8,9 @@
  * Enhanced with:
  * - AgentContextBar showing current feature, task, and step progress
  * - EnhancedLogEntry with semantic parsing, icons, and color-coding
- * - Search and filter functionality for logs
+ * - Search with result highlighting and navigation
+ * - Collapsible log groups by type
+ * - Keyboard shortcuts displayed in tooltips
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
@@ -26,6 +28,9 @@ import {
   FileText,
   Settings2,
   MonitorCog,
+  ChevronLeft,
+  ChevronRight,
+  Keyboard,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Terminal } from './Terminal'
@@ -81,6 +86,14 @@ interface DebugLogViewerProps {
 
 type LogLevel = 'error' | 'warn' | 'debug' | 'info'
 
+// Keyboard shortcuts reference
+const KEYBOARD_SHORTCUTS = [
+  { key: 'D', description: 'Toggle debug panel' },
+  { key: 'T', description: 'Toggle terminal tab' },
+  { key: 'Esc', description: 'Close panel/search' },
+  { key: 'Ctrl+F', description: 'Search in logs' },
+]
+
 export function DebugLogViewer({
   logs,
   parsedLogs,
@@ -100,6 +113,7 @@ export function DebugLogViewer({
 }: DebugLogViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const devScrollRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [devAutoScroll, setDevAutoScroll] = useState(true)
   const [isResizing, setIsResizing] = useState(false)
@@ -117,6 +131,11 @@ export function DebugLogViewer({
   const [showSearch, setShowSearch] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [selectedFilterTypes, setSelectedFilterTypes] = useState<LogEntryType[]>([])
+  const [showShortcuts, setShowShortcuts] = useState(false)
+
+  // Search navigation state
+  const [searchMatchCount, setSearchMatchCount] = useState(0)
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0)
 
   // Terminal management state
   const [terminals, setTerminals] = useState<TerminalInfo[]>([])
@@ -142,6 +161,36 @@ export function DebugLogViewer({
   }), [])
 
   const effectiveAgentContext = agentContext ?? defaultAgentContext
+
+  // Count search matches
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSearchMatchCount(0)
+      setCurrentSearchIndex(0)
+      return
+    }
+
+    const entries = activeTab === 'agent' ? (parsedLogs || []) : (parsedDevLogs || [])
+    const term = searchTerm.toLowerCase()
+    const matches = entries.filter(entry =>
+      entry.text.toLowerCase().includes(term) ||
+      entry.rawText.toLowerCase().includes(term)
+    ).length
+
+    setSearchMatchCount(matches)
+    setCurrentSearchIndex(matches > 0 ? 1 : 0)
+  }, [searchTerm, parsedLogs, parsedDevLogs, activeTab])
+
+  // Navigate between search results
+  const navigateSearch = useCallback((direction: 'prev' | 'next') => {
+    if (searchMatchCount === 0) return
+
+    if (direction === 'next') {
+      setCurrentSearchIndex(prev => prev >= searchMatchCount ? 1 : prev + 1)
+    } else {
+      setCurrentSearchIndex(prev => prev <= 1 ? searchMatchCount : prev - 1)
+    }
+  }, [searchMatchCount])
 
   // Toggle filter type selection
   const handleFilterTypeToggle = useCallback((type: LogEntryType) => {
@@ -244,6 +293,38 @@ export function DebugLogViewer({
     }
   }, [panelHeight, isOpen, onHeightChange])
 
+  // Keyboard shortcuts for search
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + F to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && (activeTab === 'agent' || activeTab === 'devserver')) {
+        e.preventDefault()
+        setShowSearch(true)
+        setTimeout(() => searchInputRef.current?.focus(), 50)
+      }
+
+      // Enter/Shift+Enter to navigate search results
+      if (showSearch && searchMatchCount > 0) {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          navigateSearch(e.shiftKey ? 'prev' : 'next')
+        }
+      }
+
+      // Escape to close search
+      if (e.key === 'Escape' && showSearch) {
+        e.preventDefault()
+        setShowSearch(false)
+        setSearchTerm('')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, activeTab, showSearch, searchMatchCount])
+
   const handleMouseMove = useCallback((e: MouseEvent) => {
     const newHeight = window.innerHeight - e.clientY
     const clampedHeight = Math.min(Math.max(newHeight, MIN_HEIGHT), MAX_HEIGHT)
@@ -328,7 +409,7 @@ export function DebugLogViewer({
   }
 
   const tabs = [
-    { id: 'agent', label: 'Agent', icon: Cpu, count: logs.length },
+    { id: 'agent', label: 'Agent', icon: Cpu, count: logs.length, shortcut: 'D' },
     { id: 'devserver', label: 'Dev Server', icon: Server, count: devLogs.length },
     { id: 'terminal', label: 'Terminal', icon: TerminalIcon, shortcut: 'T' },
     { id: 'spec', label: 'Spec', icon: FileText },
@@ -371,6 +452,7 @@ export function DebugLogViewer({
           <button
             onClick={onToggle}
             className="flex items-center gap-2 hover:bg-[var(--color-bg-tertiary)] px-2 py-1.5 rounded-lg transition-colors cursor-pointer"
+            title="Toggle debug panel (D)"
           >
             <TerminalIcon size={16} className="text-[var(--color-accent-primary)]" />
             <span className="font-medium text-sm text-[var(--color-text-primary)]">Debug</span>
@@ -396,14 +478,15 @@ export function DebugLogViewer({
                         ? "bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm"
                         : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]"
                     )}
+                    title={tab.shortcut ? `${tab.label} (${tab.shortcut})` : tab.label}
                   >
                     <tab.icon size={12} />
-                    {tab.label}
+                    <span className="hidden sm:inline">{tab.label}</span>
                     {tab.count !== undefined && tab.count > 0 && (
                       <span className="px-1.5 py-0.5 text-[10px] bg-[var(--color-bg-tertiary)] rounded-full">{tab.count}</span>
                     )}
                     {tab.shortcut && (
-                      <span className="px-1 py-0.5 text-[10px] bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] rounded">{tab.shortcut}</span>
+                      <span className="hidden lg:inline px-1 py-0.5 text-[10px] bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] rounded">{tab.shortcut}</span>
                     )}
                   </button>
                 ))}
@@ -423,7 +506,7 @@ export function DebugLogViewer({
 
         <div className="flex items-center gap-2">
           {/* Search and filter controls for agent/devserver tabs */}
-          {isOpen && activeTab !== 'terminal' && (
+          {isOpen && (activeTab === 'agent' || activeTab === 'devserver') && (
             <>
               {/* Search toggle */}
               <button
@@ -434,7 +517,7 @@ export function DebugLogViewer({
                     ? "bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary)]"
                     : "hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)]"
                 )}
-                title="Search logs"
+                title="Search logs (Ctrl+F)"
               >
                 <Search size={14} />
               </button>
@@ -443,12 +526,12 @@ export function DebugLogViewer({
               <button
                 onClick={(e) => { e.stopPropagation(); setShowFilters(!showFilters); setShowSearch(false) }}
                 className={cn(
-                  "p-2 rounded-lg transition-colors",
+                  "relative p-2 rounded-lg transition-colors",
                   showFilters || selectedFilterTypes.length > 0
                     ? "bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary)]"
                     : "hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)]"
                 )}
-                title="Filter logs"
+                title="Filter logs by type"
               >
                 <Filter size={14} />
                 {selectedFilterTypes.length > 0 && (
@@ -456,6 +539,20 @@ export function DebugLogViewer({
                     {selectedFilterTypes.length}
                   </span>
                 )}
+              </button>
+
+              {/* Keyboard shortcuts */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowShortcuts(!showShortcuts) }}
+                className={cn(
+                  "p-2 rounded-lg transition-colors",
+                  showShortcuts
+                    ? "bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary)]"
+                    : "hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)]"
+                )}
+                title="Keyboard shortcuts"
+              >
+                <Keyboard size={14} />
               </button>
 
               {/* Clear logs */}
@@ -468,7 +565,7 @@ export function DebugLogViewer({
               </button>
             </>
           )}
-          <button onClick={onToggle} className="p-1">
+          <button onClick={onToggle} className="p-1" title={isOpen ? "Collapse panel" : "Expand panel"}>
             {isOpen ? <ChevronDown size={16} className="text-[var(--color-text-tertiary)]" /> : <ChevronUp size={16} className="text-[var(--color-text-tertiary)]" />}
           </button>
         </div>
@@ -483,9 +580,9 @@ export function DebugLogViewer({
             exit={{ opacity: 0 }}
             className="h-[calc(100%-2.75rem)] bg-[var(--color-bg-primary)] flex flex-col"
           >
-            {/* Search bar (shown when search is active) */}
+            {/* Search bar with navigation (shown when search is active) */}
             <AnimatePresence>
-              {showSearch && activeTab !== 'terminal' && (
+              {showSearch && (activeTab === 'agent' || activeTab === 'devserver') && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -495,17 +592,43 @@ export function DebugLogViewer({
                   <div className="flex items-center gap-2 px-3 py-2">
                     <Search size={14} className="text-[var(--color-text-tertiary)]" />
                     <input
+                      ref={searchInputRef}
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search logs..."
+                      placeholder="Search logs... (Enter to navigate, Esc to close)"
                       className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none"
                       autoFocus
                     />
+
+                    {/* Search result navigation */}
+                    {searchMatchCount > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-[var(--color-text-tertiary)]">
+                          {currentSearchIndex}/{searchMatchCount}
+                        </span>
+                        <button
+                          onClick={() => navigateSearch('prev')}
+                          className="p-1 hover:bg-[var(--color-bg-tertiary)] rounded"
+                          title="Previous match (Shift+Enter)"
+                        >
+                          <ChevronLeft size={14} className="text-[var(--color-text-tertiary)]" />
+                        </button>
+                        <button
+                          onClick={() => navigateSearch('next')}
+                          className="p-1 hover:bg-[var(--color-bg-tertiary)] rounded"
+                          title="Next match (Enter)"
+                        >
+                          <ChevronRight size={14} className="text-[var(--color-text-tertiary)]" />
+                        </button>
+                      </div>
+                    )}
+
                     {searchTerm && (
                       <button
                         onClick={() => setSearchTerm('')}
                         className="p-1 hover:bg-[var(--color-bg-tertiary)] rounded"
+                        title="Clear search"
                       >
                         <X size={12} className="text-[var(--color-text-tertiary)]" />
                       </button>
@@ -517,7 +640,7 @@ export function DebugLogViewer({
 
             {/* Filter bar (shown when filters are active) */}
             <AnimatePresence>
-              {showFilters && activeTab !== 'terminal' && (
+              {showFilters && (activeTab === 'agent' || activeTab === 'devserver') && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -530,6 +653,29 @@ export function DebugLogViewer({
                       onTypeToggle={handleFilterTypeToggle}
                       onClearFilters={handleClearFilters}
                     />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Keyboard shortcuts panel */}
+            <AnimatePresence>
+              {showShortcuts && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
+                >
+                  <div className="px-3 py-2 flex flex-wrap gap-3">
+                    {KEYBOARD_SHORTCUTS.map((shortcut) => (
+                      <div key={shortcut.key} className="flex items-center gap-2 text-xs">
+                        <kbd className="px-1.5 py-0.5 bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] rounded font-mono border border-[var(--color-border)]">
+                          {shortcut.key}
+                        </kbd>
+                        <span className="text-[var(--color-text-tertiary)]">{shortcut.description}</span>
+                      </div>
+                    ))}
                   </div>
                 </motion.div>
               )}

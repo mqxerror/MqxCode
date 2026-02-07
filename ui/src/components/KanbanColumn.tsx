@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { FeatureCard } from './FeatureCard'
-import { Plus, Sparkles, Search, X } from 'lucide-react'
-import { AnimatePresence } from 'framer-motion'
+import { Plus, Sparkles, Search, X, Filter, ChevronDown } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import type { Feature } from '../lib/types'
 import { cn } from './aceternity'
 
@@ -22,24 +22,21 @@ interface KanbanColumnProps {
 const colorConfig = {
   pending: {
     accent: 'var(--color-warning)',
-    bg: 'rgba(245, 158, 11, 0.1)',
-    border: 'rgba(245, 158, 11, 0.3)',
-    glow: 'rgba(245, 158, 11, 0.2)',
-    lampColor: '#f59e0b',
+    bg: 'rgba(245, 158, 11, 0.08)',
+    border: 'rgba(245, 158, 11, 0.25)',
+    glow: 'rgba(245, 158, 11, 0.15)',
   },
   progress: {
     accent: 'var(--color-accent-primary)',
-    bg: 'rgba(99, 102, 241, 0.1)',
-    border: 'rgba(99, 102, 241, 0.3)',
-    glow: 'rgba(99, 102, 241, 0.2)',
-    lampColor: '#6366f1',
+    bg: 'rgba(99, 102, 241, 0.08)',
+    border: 'rgba(99, 102, 241, 0.25)',
+    glow: 'rgba(99, 102, 241, 0.15)',
   },
   done: {
     accent: 'var(--color-success)',
-    bg: 'rgba(16, 185, 129, 0.1)',
-    border: 'rgba(16, 185, 129, 0.3)',
-    glow: 'rgba(16, 185, 129, 0.2)',
-    lampColor: '#10b981',
+    bg: 'rgba(16, 185, 129, 0.08)',
+    border: 'rgba(16, 185, 129, 0.25)',
+    glow: 'rgba(16, 185, 129, 0.15)',
   },
 }
 
@@ -58,7 +55,22 @@ export function KanbanColumn({
 }: KanbanColumnProps) {
   const config = colorConfig[color]
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const filterDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Get unique categories from features
+  const categories = useMemo(() => {
+    const cats = new Set(features.map(f => f.category))
+    return Array.from(cats).sort()
+  }, [features])
+
+  // Filter features by category (local filter on top of search)
+  const displayFeatures = useMemo(() => {
+    if (!selectedCategory) return features
+    return features.filter(f => f.category === selectedCategory)
+  }, [features, selectedCategory])
 
   // Focus input when search expands
   useEffect(() => {
@@ -66,6 +78,17 @@ export function KanbanColumn({
       searchInputRef.current.focus()
     }
   }, [isSearchExpanded])
+
+  // Close filter dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setShowCategoryFilter(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Close search when query is cleared and user clicks away
   const handleSearchBlur = () => {
@@ -79,10 +102,23 @@ export function KanbanColumn({
     setIsSearchExpanded(false)
   }
 
+  const handleCategorySelect = (category: string | null) => {
+    setSelectedCategory(category)
+    setShowCategoryFilter(false)
+  }
+
+  // Keyboard shortcut handler for search (when focused)
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      handleClearSearch()
+      searchInputRef.current?.blur()
+    }
+  }
+
   return (
     <div
       className={cn(
-        "rounded-2xl overflow-hidden",
+        "rounded-2xl overflow-hidden flex flex-col",
         "bg-[var(--color-bg-secondary)] border border-[var(--color-border)]",
       )}
     >
@@ -94,7 +130,7 @@ export function KanbanColumn({
           borderTop: `3px solid ${config.accent}`,
         }}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <h2
               className="font-display text-base font-semibold"
@@ -112,42 +148,131 @@ export function KanbanColumn({
             >
               {count}
             </span>
+            {/* Category filter indicator */}
+            {selectedCategory && (
+              <span
+                className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full cursor-pointer hover:opacity-80"
+                style={{
+                  backgroundColor: config.bg,
+                  color: config.accent,
+                  border: `1px solid ${config.border}`
+                }}
+                onClick={() => handleCategorySelect(null)}
+                title="Click to clear filter"
+              >
+                <Filter size={10} />
+                {selectedCategory}
+                <X size={10} />
+              </span>
+            )}
           </div>
+
+          {/* Actions */}
           {(onAddFeature || onExpandProject || showSearch) && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {/* Search */}
               {showSearch && (
                 <div className="flex items-center">
-                  {isSearchExpanded ? (
-                    <div className="flex items-center gap-1 animate-fade-in">
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => onSearchChange?.(e.target.value)}
-                        onBlur={handleSearchBlur}
-                        placeholder="Search..."
-                        className="w-32 text-xs py-1.5 px-2 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
-                      />
-                      <button
-                        onClick={handleClearSearch}
-                        className="btn btn-ghost btn-icon p-1"
-                        title="Clear search"
+                  <AnimatePresence mode="wait">
+                    {isSearchExpanded ? (
+                      <motion.div
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        className="flex items-center gap-1"
                       >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setIsSearchExpanded(true)}
-                      className="btn btn-ghost btn-icon p-1.5"
-                      title="Search features"
-                    >
-                      <Search size={14} />
-                    </button>
-                  )}
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => onSearchChange?.(e.target.value)}
+                          onBlur={handleSearchBlur}
+                          onKeyDown={handleSearchKeyDown}
+                          placeholder="Search... (Esc to close)"
+                          className="w-36 text-xs py-1.5 px-2 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
+                        />
+                        <button
+                          onClick={handleClearSearch}
+                          className="p-1.5 rounded-lg hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                          title="Clear search (Esc)"
+                        >
+                          <X size={14} />
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <motion.button
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setIsSearchExpanded(true)}
+                        className="p-1.5 rounded-lg hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                        title="Search features (/)"
+                      >
+                        <Search size={14} />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
+
+              {/* Category Filter */}
+              {showSearch && categories.length > 1 && (
+                <div className="relative" ref={filterDropdownRef}>
+                  <button
+                    onClick={() => setShowCategoryFilter(!showCategoryFilter)}
+                    className={cn(
+                      "p-1.5 rounded-lg text-[var(--color-text-tertiary)]",
+                      showCategoryFilter || selectedCategory
+                        ? "bg-[var(--color-accent-primary)]/10 text-[var(--color-accent-primary)]"
+                        : "hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]"
+                    )}
+                    title="Filter by category"
+                  >
+                    <Filter size={14} />
+                  </button>
+
+                  {/* Category Dropdown */}
+                  <AnimatePresence>
+                    {showCategoryFilter && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        className="absolute right-0 top-full mt-1 z-50 min-w-[140px] py-1 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] shadow-lg"
+                      >
+                        <button
+                          onClick={() => handleCategorySelect(null)}
+                          className={cn(
+                            "w-full px-3 py-1.5 text-left text-xs flex items-center gap-2",
+                            "hover:bg-[var(--color-bg-tertiary)]",
+                            !selectedCategory && "text-[var(--color-accent-primary)]"
+                          )}
+                        >
+                          <span>All categories</span>
+                          {!selectedCategory && <ChevronDown size={12} className="ml-auto rotate-180" />}
+                        </button>
+                        <div className="h-px bg-[var(--color-border)] my-1" />
+                        {categories.map(cat => (
+                          <button
+                            key={cat}
+                            onClick={() => handleCategorySelect(cat)}
+                            className={cn(
+                              "w-full px-3 py-1.5 text-left text-xs flex items-center gap-2",
+                              "hover:bg-[var(--color-bg-tertiary)]",
+                              selectedCategory === cat && "text-[var(--color-accent-primary)]"
+                            )}
+                          >
+                            <span className="truncate">{cat}</span>
+                            {selectedCategory === cat && <ChevronDown size={12} className="ml-auto rotate-180" />}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* Add Feature */}
               {onAddFeature && (
                 <button
                   onClick={onAddFeature}
@@ -155,8 +280,11 @@ export function KanbanColumn({
                   title="Add new feature (N)"
                 >
                   <Plus size={14} />
+                  <span className="hidden sm:inline">Add</span>
                 </button>
               )}
+
+              {/* Expand Project */}
               {onExpandProject && showExpandButton && (
                 <button
                   onClick={onExpandProject}
@@ -171,26 +299,51 @@ export function KanbanColumn({
         </div>
       </div>
 
-      {/* Cards */}
-      <div className="p-3 space-y-3 max-h-[500px] overflow-y-auto scrollbar-thin bg-[var(--color-bg-primary)]/50">
+      {/* Cards Container */}
+      <div className="p-3 space-y-3 flex-1 max-h-[500px] overflow-y-auto scrollbar-thin bg-[var(--color-bg-primary)]/50">
         <AnimatePresence mode="popLayout">
-          {features.length === 0 ? (
-            <div className="text-center py-12 text-[var(--color-text-tertiary)]">
-              <p className="text-sm">No features</p>
-            </div>
+          {displayFeatures.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center py-12 text-[var(--color-text-tertiary)]"
+            >
+              <p className="text-sm">
+                {features.length === 0
+                  ? "No features"
+                  : selectedCategory
+                    ? `No ${selectedCategory} features`
+                    : "No matching features"
+                }
+              </p>
+            </motion.div>
           ) : (
-            features.map((feature) => (
-              <div key={feature.id}>
+            displayFeatures.map((feature, index) => (
+              <motion.div
+                key={feature.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: index * 0.03 }}
+              >
                 <FeatureCard
                   feature={feature}
                   onClick={() => onFeatureClick(feature)}
                   isInProgress={color === 'progress'}
                 />
-              </div>
+              </motion.div>
             ))
           )}
         </AnimatePresence>
       </div>
+
+      {/* Footer with count info */}
+      {displayFeatures.length > 0 && displayFeatures.length !== features.length && (
+        <div className="px-4 py-2 border-t border-[var(--color-border)] text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg-secondary)]">
+          Showing {displayFeatures.length} of {features.length} features
+        </div>
+      )}
     </div>
   )
 }
