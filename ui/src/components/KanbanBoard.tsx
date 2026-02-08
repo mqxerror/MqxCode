@@ -23,9 +23,9 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
     const query = searchQuery.toLowerCase().trim()
 
     const filterFn = (feature: Feature) =>
-      feature.name.toLowerCase().includes(query) ||
-      feature.description.toLowerCase().includes(query) ||
-      feature.category.toLowerCase().includes(query)
+      (feature.name || '').toLowerCase().includes(query) ||
+      (feature.description || '').toLowerCase().includes(query) ||
+      (feature.category || '').toLowerCase().includes(query)
 
     return {
       pending: features.pending.filter(filterFn),

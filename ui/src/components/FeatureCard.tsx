@@ -82,7 +82,7 @@ function getStatusConfig(feature: Feature, isInProgress?: boolean) {
 
 export function FeatureCard({ feature, onClick, isInProgress }: FeatureCardProps) {
   const [isHovered, setIsHovered] = useState(false)
-  const categoryColor = getCategoryColor(feature.category)
+  const categoryColor = getCategoryColor(feature.category || '')
   const statusConfig = getStatusConfig(feature, isInProgress)
   const StatusIcon = statusConfig.icon
 
@@ -125,7 +125,7 @@ export function FeatureCard({ feature, onClick, isInProgress }: FeatureCardProps
                 border: `1px solid ${categoryColor.border}`
               }}
             >
-              {feature.category}
+              {feature.category || 'uncategorized'}
             </span>
 
             {/* Dependency Indicator */}
@@ -159,12 +159,12 @@ export function FeatureCard({ feature, onClick, isInProgress }: FeatureCardProps
 
         {/* Name */}
         <h3 className="font-display font-semibold text-[var(--color-text-primary)] mb-1.5 line-clamp-2 leading-snug">
-          {feature.name}
+          {feature.name || 'Unnamed feature'}
         </h3>
 
         {/* Description */}
         <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 mb-3 leading-relaxed">
-          {feature.description}
+          {feature.description || 'No description'}
         </p>
 
         {/* Footer Row */}

@@ -1,9 +1,15 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { FeatureCard } from './FeatureCard'
-import { Plus, Sparkles, Search, X, Filter, ChevronDown } from 'lucide-react'
+import { Plus, Sparkles, Search, X, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { Feature } from '../lib/types'
 import { cn } from './aceternity'
+
+// Performance: limit initial render to prevent DOM overload with 100+ features
+const INITIAL_VISIBLE = 30
+const LOAD_MORE_INCREMENT = 30
+// Only stagger animate the first N items for smooth entrance
+const MAX_STAGGER_ITEMS = 8
 
 interface KanbanColumnProps {
   title: string
@@ -57,6 +63,7 @@ export function KanbanColumn({
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const [showCategoryFilter, setShowCategoryFilter] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const filterDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -67,10 +74,23 @@ export function KanbanColumn({
   }, [features])
 
   // Filter features by category (local filter on top of search)
-  const displayFeatures = useMemo(() => {
+  const filteredByCategory = useMemo(() => {
     if (!selectedCategory) return features
     return features.filter(f => f.category === selectedCategory)
   }, [features, selectedCategory])
+
+  // Performance: only render up to visibleCount items to avoid DOM overload
+  const displayFeatures = useMemo(() => {
+    return filteredByCategory.slice(0, visibleCount)
+  }, [filteredByCategory, visibleCount])
+
+  const hasMore = filteredByCategory.length > visibleCount
+  const remainingCount = filteredByCategory.length - visibleCount
+
+  // Reset visible count when features list changes significantly (new project, filter change)
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE)
+  }, [selectedCategory])
 
   // Focus input when search expands
   useEffect(() => {
@@ -301,7 +321,7 @@ export function KanbanColumn({
 
       {/* Cards Container */}
       <div className="p-3 space-y-3 flex-1 max-h-[500px] overflow-y-auto scrollbar-thin bg-[var(--color-bg-primary)]/50">
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence mode="sync">
           {displayFeatures.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
@@ -325,7 +345,8 @@ export function KanbanColumn({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: index * 0.03 }}
+                // Only stagger-animate the first N items; render the rest instantly
+                transition={index < MAX_STAGGER_ITEMS ? { delay: index * 0.03 } : { duration: 0.15 }}
               >
                 <FeatureCard
                   feature={feature}
@@ -336,12 +357,44 @@ export function KanbanColumn({
             ))
           )}
         </AnimatePresence>
+
+        {/* Load more button for large lists */}
+        {hasMore && (
+          <button
+            onClick={() => setVisibleCount(prev => prev + LOAD_MORE_INCREMENT)}
+            className={cn(
+              "w-full py-2.5 px-3 rounded-xl text-xs font-medium",
+              "bg-[var(--color-bg-tertiary)] border border-[var(--color-border)]",
+              "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
+              "hover:border-[var(--color-border-light)] hover:bg-[var(--color-bg-elevated)]",
+              "transition-all duration-200"
+            )}
+          >
+            Show more ({remainingCount} remaining)
+          </button>
+        )}
+
+        {/* Collapse button when expanded beyond initial */}
+        {!hasMore && visibleCount > INITIAL_VISIBLE && filteredByCategory.length > INITIAL_VISIBLE && (
+          <button
+            onClick={() => setVisibleCount(INITIAL_VISIBLE)}
+            className={cn(
+              "w-full py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1",
+              "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]",
+              "transition-all duration-200"
+            )}
+          >
+            <ChevronUp size={12} />
+            Show less
+          </button>
+        )}
       </div>
 
       {/* Footer with count info */}
-      {displayFeatures.length > 0 && displayFeatures.length !== features.length && (
+      {(displayFeatures.length > 0 && (displayFeatures.length !== features.length || hasMore)) && (
         <div className="px-4 py-2 border-t border-[var(--color-border)] text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg-secondary)]">
-          Showing {displayFeatures.length} of {features.length} features
+          Showing {displayFeatures.length} of {filteredByCategory.length} features
+          {selectedCategory && ` (filtered from ${features.length})`}
         </div>
       )}
     </div>
